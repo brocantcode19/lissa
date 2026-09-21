@@ -41,3 +41,4 @@ Thumbs.db
 # Don't commit raw PDFs - manage them through the admin panel
 knowledge_base/
 uploads/
+.env
