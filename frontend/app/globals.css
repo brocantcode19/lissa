@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── shadcn CSS variables mapped to LdCU brand ──────────────────────── */
+    --background:            0 0% 100%;
+    --foreground:            0 50% 7%;
+    --card:                  0 0% 100%;
+    --card-foreground:       0 50% 7%;
+    --popover:               0 0% 100%;
+    --popover-foreground:    0 50% 7%;
+    --primary:               0 70% 10%;      /* maroon #2D0808   */
+    --primary-foreground:    43 63% 49%;     /* gold   #C9A030   */
+    --secondary:             43 63% 49%;     /* gold             */
+    --secondary-foreground:  0 70% 10%;      /* maroon           */
+    --muted:                 0 0% 96%;
+    --muted-foreground:      0 0% 45%;
+    --accent:                0 0% 96%;
+    --accent-foreground:     0 50% 7%;
+    --destructive:           0 84% 60%;
+    --destructive-foreground:0 0% 98%;
+    --border:                0 0% 90%;
+    --input:                 0 0% 90%;
+    --ring:                  0 70% 10%;
+    --radius:                0.75rem;
+  }
+
+  * { border-color: hsl(var(--border)); }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  /* ── Sidebar gradient ─────────────────────────────────────────────────── */
+  .sidebar-gradient {
+    background: linear-gradient(180deg, #1A0606 0%, #2B0A0A 100%);
+  }
+
+  /* ── Maroon glass input (sidebar search) ──────────────────────────────── */
+  .input-glass {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .input-glass::placeholder { color: rgba(255, 255, 255, 0.35); }
+  .input-glass:focus        { outline: none; background: rgba(255,255,255,0.12); }
+
+  /* ── Chat bubble animations ───────────────────────────────────────────── */
+  .message-in  { animation: fade-in 0.15s ease-out; }
+
+  /* ── Streaming cursor ─────────────────────────────────────────────────── */
+  .streaming-cursor {
+    @apply inline-block w-0.5 h-4 bg-maroon-mid align-middle ml-0.5 animate-blink;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar { height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+}

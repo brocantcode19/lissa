@@ -1,0 +1,31 @@
+question,ground_truth_answer,source_document,source_section,category
+What are the enrollment requirements for new students?,"PSA-authenticated Birth Certificate, Form 138, Certificate of Good Moral Character, two pieces 2x2 ID photos, and an accomplished LdCU Enrollment Form",LdCU_Enrollment_Guide.pdf,Enrollment Requirements,enrollment
+What documents are required for transferee students?,"Honorable Dismissal, Official Transcript of Records, PSA-authenticated Birth Certificate, Certificate of Good Moral Character, two pieces 2x2 ID photos, and an accomplished LdCU Transfer Evaluation Form",LdCU_Enrollment_Guide.pdf,Enrollment Requirements,enrollment
+What is the maximum number of units a student can enroll in per semester?,27 units for regular students,LdCU_Enrollment_Guide.pdf,Unit Load,enrollment
+How many units can freshmen enroll in during their first semester?,24 units,LdCU_Enrollment_Guide.pdf,Unit Load,enrollment
+How many units can students on academic probation enroll in?,18 units per semester,LdCU_Enrollment_Guide.pdf,Unit Load,enrollment
+What is the late enrollment fee?,Php 200.00,LdCU_Enrollment_Guide.pdf,Enrollment Period,enrollment
+What is the down payment requirement for enrollment?,Full payment or a 50% down payment is required before official enrollment is confirmed,LdCU_Enrollment_Guide.pdf,Enrollment Procedure,enrollment
+When is the enrollment period for the first semester?,July 15 to August 2 2025,LdCU_Enrollment_Guide.pdf,Enrollment Period,enrollment
+When is the last day of late enrollment for the first semester?,August 9 2025,LdCU_Academic_Calendar_2025_2026.pdf,First Semester,academic_calendar
+When does the first semester start?,August 4 2025,LdCU_Academic_Calendar_2025_2026.pdf,First Semester,academic_calendar
+When is the enrollment period for the second semester?,December 8 to January 10 2026,LdCU_Academic_Calendar_2025_2026.pdf,Second Semester,academic_calendar
+When are final exams for the second semester?,April 27 to May 2 2026,LdCU_Academic_Calendar_2025_2026.pdf,Second Semester,academic_calendar
+When is the deadline for submission of final grades?,May 15 2026,LdCU_Academic_Calendar_2025_2026.pdf,Second Semester,academic_calendar
+When is the last day to add or drop subjects in the first semester?,August 25 2025,LdCU_Academic_Calendar_2025_2026.pdf,First Semester,academic_calendar
+When is the scholarship application period for the second semester?,October 15 to November 15 2025,LdCU_Academic_Calendar_2025_2026.pdf,First Semester,scholarships
+What GPA is required to maintain the Academic Excellence Scholarship?,1.25 or higher,LdCU_Scholarship_Guidelines.pdf,Renewal Requirements,scholarships
+What is the deadline for scholarship applications?,June 1 to June 30 every year for the First Semester,LdCU_Scholarship_Guidelines.pdf,Application Period,scholarships
+How much discount does the Academic Excellence Scholarship provide?,100% tuition fee discount,LdCU_Scholarship_Guidelines.pdf,Academic Excellence,scholarships
+What is the monthly stipend for athletic scholars?,Php 2000.00,LdCU_Scholarship_Guidelines.pdf,Athletic Scholarship,scholarships
+What discount does the Academic Merit Scholarship provide?,50% tuition fee discount per semester,LdCU_Scholarship_Guidelines.pdf,Academic Merit,scholarships
+What GPA is required for the Academic Merit Scholarship?,1.50 or higher,LdCU_Scholarship_Guidelines.pdf,Academic Merit,scholarships
+Can a student hold two scholarships at the same time?,Students must not be a recipient of any other scholarship or financial assistance,LdCU_Scholarship_Guidelines.pdf,Academic Excellence,scholarships
+How do I request a copy of my Transcript of Records?,Submit an accomplished Request Form at the Registrar's Office window together with a Php 150.00 processing fee per copy,LdCU_Registrar_FAQ.pdf,Document Requests,registrar
+How long does it take to process a Transcript of Records?,within 5 to 7 working days from the date of request,LdCU_Registrar_FAQ.pdf,Document Requests,registrar
+What is the processing fee for a Transcript of Records?,Php 150.00 per copy,LdCU_Registrar_FAQ.pdf,Document Requests,registrar
+What are the office hours of the Registrar's Office?,Monday to Friday from 8:00 AM to 5:00 PM with no noon break,LdCU_Registrar_FAQ.pdf,Office Information,registrar
+What is the minimum passing grade at LdCU?,3.0 on a 1.0 to 5.0 grading scale,LdCU_Registrar_FAQ.pdf,Grades and Records,registrar
+How do I request a Certificate of Enrollment?,Submit a request form at the Registrar's Office and pay a processing fee of Php 50.00,LdCU_Registrar_FAQ.pdf,Document Requests,registrar
+Can someone else pick up my documents on my behalf?,"Yes, an authorized representative may claim your documents by presenting a signed authorization letter from the student, a photocopy of the student's valid ID, and the representative's own valid ID",LdCU_Registrar_FAQ.pdf,Document Requests,registrar
+When are final grades posted?,within 15 working days after the last day of the final examination period,LdCU_Registrar_FAQ.pdf,Grades and Records,registrar

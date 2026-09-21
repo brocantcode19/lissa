@@ -1,0 +1,43 @@
+# ── Environment ──────────────────────────────────────────────────────────────
+.env
+*.env.local
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# ── Node / Next.js ────────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-error.log*
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# (volumes are excluded from git by default)
+
+# ── ML Models Cache ───────────────────────────────────────────────────────────
+# These are large — download at runtime via Docker volume
+.cache/
+models/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+
+# ── Thesis / Documents ────────────────────────────────────────────────────────
+# Don't commit raw PDFs - manage them through the admin panel
+knowledge_base/
+uploads/
