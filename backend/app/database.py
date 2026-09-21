@@ -31,16 +31,21 @@ async def disconnect_mongodb():
 
 
 # ── Qdrant ─────────────────────────────────────────────────────────────────────
-qdrant_client: QdrantClient = None
+_qdrant_client = None
 
 
-def get_qdrant() -> QdrantClient:
-    return qdrant_client
+def get_qdrant():
+    global _qdrant_client
+    if _qdrant_client is None:
+        _qdrant_client = QdrantClient(
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY or None,
+        )
+    return _qdrant_client
 
 
 async def connect_qdrant():
-    global qdrant_client
-    qdrant_client = QdrantClient(url=settings.QDRANT_URL)
+    qdrant_client = get_qdrant()
 
     # Create the knowledge base collection if it doesn't exist yet
     existing = [c.name for c in qdrant_client.get_collections().collections]
