@@ -12,8 +12,9 @@ def get_mongo_client() -> AsyncIOMotorClient:
 
 
 def get_db():
-    return mongo_client[settings.MONGODB_URL.split("/")[-1]]  # extracts "lissa"
-
+    # Works for both local Docker URL and MongoDB Atlas SRV URL
+    db_name = "lissa"
+    return mongo_client[db_name]
 
 async def connect_mongodb():
     global mongo_client

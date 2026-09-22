@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Qdrant
     QDRANT_URL: str = "http://qdrant:6333"
-    QDRANT_API_KEY:    str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6NTA5YjFiNzktYmU4My00OTMwLWFhNGEtNGI1NDI2MDdkYzBkIn0.TQHhWRcJS_6u5QU-2xK5-IOOLtM4cCWvOES-Bt5MiLA"
+    QDRANT_API_KEY:    str = ""
     QDRANT_COLLECTION: str = "lissa-kb"
 
     # App
