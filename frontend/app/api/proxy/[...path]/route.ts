@@ -4,9 +4,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
 
 async function proxyRequest(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ): Promise<NextResponse> {
-  const path       = params.path.join('/');
+  const resolvedParams = await params;
+  const path       = resolvedParams.path.join('/');
   const backendPath = path === 'documents' ? `${path}/` : path;
   const backendUrl = `${BACKEND_URL}/api/${backendPath}`;
 
