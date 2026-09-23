@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -46,7 +47,7 @@ export default function RegisterPage() {
 
         <div className="relative text-center flex flex-col items-center">
           <div className="mb-7">
-            <img src="/ldcu-crest.png" alt="LdCU seal"
+            <Image src="/ldcu-crest.png" alt="LdCU seal" width={144} height={144}
               className="w-36 h-36 object-contain"
               onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
           </div>

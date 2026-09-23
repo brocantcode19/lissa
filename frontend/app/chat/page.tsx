@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -405,7 +406,7 @@ export default function ChatPage() {
           {messages.length === 0 && (
             <div className="flex-1 flex flex-col justify-center max-w-2xl pb-16">
               <div className="flex items-center gap-4 mb-5">
-                <img src="/ldcu-crest.png" alt="LdCU" className="w-11 h-11 object-contain"
+                <Image src="/ldcu-crest.png" alt="LdCU" width={44} height={44} className="w-11 h-11 object-contain"
                   onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
                 <p className="italic text-base text-foreground font-medium">
                   Hello! {user?.full_name?.split(" ")[0] || "Student"}

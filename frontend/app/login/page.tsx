@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function LoginPage() {
+function LoginContent() {
   const router  = useRouter();
   const params  = useSearchParams();
   const [email,    setEmail]    = useState("");
@@ -51,9 +52,11 @@ export default function LoginPage() {
         <div className="relative text-center flex flex-col items-center">
           {/* LdCU Crest */}
           <div className="mb-7">
-            <img
+            <Image
               src="/ldcu-crest.png"
               alt="Liceo de Cagayan University seal"
+              width={144}
+              height={144}
               className="w-36 h-36 object-contain"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = "none";
@@ -137,5 +140,13 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading login...</div>}>
+      <LoginContent />
+    </Suspense>
   );
 }
