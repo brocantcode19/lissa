@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -114,7 +114,7 @@ function truncateTitle(title: string) {
   return title.length > 40 ? `${title.slice(0, 40).trimEnd()}…` : title;
 }
 
-export default function AdminPage() {
+function AdminContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab,          setTab]          = useState<Tab>((searchParams.get("tab") as Tab) || "overview");
@@ -734,5 +734,13 @@ export default function AdminPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading admin panel...</div>}>
+      <AdminContent />
+    </Suspense>
   );
 }
