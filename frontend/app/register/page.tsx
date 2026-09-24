@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
   const [fullName,  setFullName]  = useState("");
   const [email,     setEmail]     = useState("");
@@ -124,5 +124,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading registration...</div>}>
+      <RegisterContent />
+    </Suspense>
   );
 }

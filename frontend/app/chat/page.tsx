@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
@@ -109,7 +109,7 @@ function confBadgeVariant(label?: string): "high" | "medium" | "low" | "scope" {
   return "low";
 }
 
-export default function ChatPage() {
+function ChatContent() {
   const router = useRouter();
   const [messages,       setMessages]       = useState<Message[]>([]);
   const [input,          setInput]          = useState("");
@@ -537,5 +537,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading chat...</div>}>
+      <ChatContent />
+    </Suspense>
   );
 }
