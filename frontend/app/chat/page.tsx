@@ -116,6 +116,7 @@ function ChatContent() {
   const [loading,        setLoading]        = useState(false);
   const [user,           setUser]           = useState<User | null>(null);
   const [sessions,       setSessions]       = useState<Session[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [activeSession,  setActiveSession]  = useState<string | null>(null);
   const [currentSession, setCurrentSession] = useState<string>(generateSessionId);
   const [feedbackGiven,  setFeedbackGiven]  = useState<Set<string>>(new Set());
@@ -125,8 +126,15 @@ function ChatContent() {
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
   const loadSessions = useCallback(async () => {
-    const r = await fetch("/api/proxy/query/my-sessions", { credentials: "include" });
-    if (r.ok) setSessions(await r.json());
+    setSessionsLoading(true);
+    try {
+      const r = await fetch("/api/proxy/query/my-sessions", { credentials: "include" });
+      if (r.ok) setSessions(await r.json());
+    } catch {
+      // silently fail — sessions just won't show
+    } finally {
+      setSessionsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -286,11 +294,26 @@ function ChatContent() {
               Recent Chats
             </p>
 
-            {sessions.length === 0 && (
-              <div className="flex flex-col gap-2 px-2 pt-1">
-                {[120, 95, 140, 80].map((w, i) => (
-                  <div key={i} className="h-0.5 rounded-full bg-white/10" style={{ width: w }} />
+            {/* State 1: Still loading — show animated skeleton lines */}
+            {sessionsLoading && (
+              <div className="flex flex-col gap-2.5 px-2 pt-2">
+                {[110, 140, 90, 125].map((w, i) => (
+                  <div
+                    key={i}
+                    className="h-1.5 rounded-full bg-white/10 animate-pulse"
+                    style={{ width: w }}
+                  />
                 ))}
+              </div>
+            )}
+
+            {/* State 2: Loaded but no sessions — show clean empty message */}
+            {!sessionsLoading && sessions.length === 0 && (
+              <div className="px-3 pt-2 pb-1">
+                <p className="text-[11px] text-white/25 italic leading-relaxed">
+                  No recent conversations yet.
+                  Start a new chat to get help.
+                </p>
               </div>
             )}
 

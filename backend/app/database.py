@@ -1,5 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from qdrant_client import QdrantClient
+from qdrant_client.http import models
 from qdrant_client.models import Distance, VectorParams
 from app.config import settings
 
@@ -61,3 +62,12 @@ async def connect_qdrant():
         print(f"✅ Qdrant collection '{settings.QDRANT_COLLECTION}' created")
     else:
         print(f"✅ Qdrant collection '{settings.QDRANT_COLLECTION}' ready")
+
+    try:
+        qdrant_client.create_payload_index(
+            collection_name=settings.QDRANT_COLLECTION,
+            field_name="doc_id",
+            field_schema=models.PayloadSchemaType.KEYWORD,
+        )
+    except Exception as e:
+        print(f"Payload index notice for doc_id: {e}")
