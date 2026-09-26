@@ -5,7 +5,12 @@ import uuid
 
 
 class QueryRequest(BaseModel):
-    question: str = Field(..., min_length=3, max_length=500)
+    question: str = Field(
+        ...,
+        min_length=5,
+        max_length=500,
+        description="Student question — 5 to 500 characters",
+    )
     session_id: Optional[str] = None  # groups questions into one conversation
 
 

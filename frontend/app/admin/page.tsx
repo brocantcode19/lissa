@@ -190,7 +190,13 @@ function AdminContent() {
     setUploading(true);
     const form = new FormData(); form.append("file", file);
     const r = await fetch("/api/proxy/documents/", { method:"POST", credentials:"include", body:form });
-    if (r.ok) { await loadDocs(); [6000,15000,30000].forEach(t => setTimeout(loadDocs, t)); }
+    if (r.ok) {
+      await loadDocs();
+      alert(
+        "Document uploaded successfully. " +
+        "If status shows Pending, click Refresh in 30 seconds to see the updated status."
+      );
+    }
     else { const e = await r.json(); alert(e.detail || "Upload failed."); }
     setUploading(false);
   };

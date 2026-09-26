@@ -1,14 +1,17 @@
 import json
 import uuid as uuid_lib
+import asyncio
+import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
+from app.main import limiter
 from app.models.query import QueryRequest, QueryResponse, InquiryInDB
 from app.models.user import TokenPayload
 from app.services.auth_service import get_current_user, require_admin
 from app.services.rag_service import (
     embed_query, generate_answer, stream_answer_async,
-    rerank_chunks, is_in_scope, FALLBACK_PHRASES
+    rerank_chunks, is_in_scope, FALLBACK_PHRASES, sanitize_question
 )
 from app.database import get_qdrant, get_db
 from app.config import settings
@@ -16,6 +19,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchAny
 from pydantic import BaseModel
 
 router = APIRouter()
+logger = logging.getLogger("lissa.usage")
 
 CONFIDENCE_THRESHOLD = 0.50
 
@@ -39,41 +43,129 @@ def serialize_datetime(value: datetime) -> str:
     return value.isoformat()
 
 
+async def check_user_daily_limit(
+    user_id: str, db, limit: int = 100
+) -> bool:
+    """
+    Returns True if the user is within their daily question limit.
+    Out-of-scope rejections are excluded from the count.
+    """
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    count = await db.inquiries.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": today_start},
+        "out_of_scope": {"$ne": True},
+    })
+    return count < limit
+
+
+async def check_abnormal_usage(user_id: str, db) -> None:
+    """
+    Logs a warning if usage looks like a bot or abuse.
+    This check is fire-and-forget and does not block the response.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+
+    ten_min_ago = now - timedelta(minutes=10)
+    burst = await db.inquiries.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": ten_min_ago},
+    })
+    if burst > 20:
+        logger.warning(
+            f"BURST ALERT: user {user_id} sent "
+            f"{burst} questions in 10 minutes. "
+            f"Possible bot or abuse."
+        )
+
+    today_start = now.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    daily = await db.inquiries.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": today_start},
+    })
+    if daily > 80:
+        logger.warning(
+            f"NEAR-CAP ALERT: user {user_id} has "
+            f"{daily} questions today. Approaching "
+            f"daily limit of {settings.RATE_LIMIT_QUERIES_PER_DAY}."
+        )
+
+
 async def _retrieve_chunks(question: str, db, qdrant):
     """Shared retrieval logic used by both stream and non-stream endpoints."""
-    query_vector = embed_query(question)
+    try:
+        query_vector = embed_query(question)
+    except Exception as error:
+        # Fail closed because retrieval cannot safely provide grounded context.
+        print(f"_retrieve_chunks: embedding failed: {error}")
+        raise HTTPException(
+            status_code=503,
+            detail="LISSA is temporarily unavailable. Please try again in a moment.",
+        )
+
     active_docs  = await db.documents.distinct(
         "doc_id", {"is_active": True, "status": "indexed"}
     )
     if not active_docs:
         return None, None, None, None
 
-    results = qdrant.search(
-        collection_name=settings.QDRANT_COLLECTION,
-        query_vector=query_vector,
-        limit=7,
-        query_filter=Filter(
-            must=[FieldCondition(key="doc_id", match=MatchAny(any=active_docs))]
+    try:
+        search_results = qdrant.search(
+            collection_name=settings.QDRANT_COLLECTION,
+            query_vector=query_vector,
+            limit=7,
+            query_filter=Filter(
+                must=[FieldCondition(
+                    key="doc_id",
+                    match=MatchAny(any=active_docs),
+                )]
+            ),
         ),
-    )
-    if not results:
-        return None, None, None, None
+    except Exception as error:
+        # Fail closed because an unavailable knowledge base cannot ground an answer.
+        print(f"_retrieve_chunks: Qdrant search failed: {error}")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The knowledge base is temporarily unavailable. "
+                "Please try again in a moment."
+            ),
+        )
 
-    chunks          = rerank_chunks(question, [h.payload["text"] for h in results])
-    source_filename = results[0].payload.get("filename")
-    return chunks, source_filename, active_docs, results
+    if not search_results:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No relevant information found for your question. "
+                "Please try rephrasing or contact the university office directly."
+            ),
+        )
+
+    chunks          = rerank_chunks(question, [h.payload["text"] for h in search_results])
+    source_filename = search_results[0].payload.get("filename")
+    return chunks, source_filename, active_docs, search_results
 
 
 # ── Standard (non-streaming) endpoint ─────────────────────────────────────────
 @router.post("/", response_model=QueryResponse)
+@limiter.limit("10/minute")
+@limiter.limit("100/day")
 async def ask(
+    request: Request,
     body: QueryRequest,
     current_user: TokenPayload = Depends(get_current_user),
 ):
+    clean_question = sanitize_question(body.question)
     db     = get_db()
     qdrant = get_qdrant()
 
-    in_scope, _ = is_in_scope(body.question)
+    in_scope, _ = is_in_scope(clean_question)
     if not in_scope:
         inquiry = InquiryInDB(
             session_id=body.session_id,
@@ -82,7 +174,14 @@ async def ask(
             answer=OUT_OF_SCOPE_MESSAGE,
             confidence=0.0, source_filename=None, escalated=False,
         )
-        await db.inquiries.insert_one({**inquiry.model_dump(), "out_of_scope": True})
+        try:
+            await db.inquiries.insert_one({**inquiry.model_dump(), "out_of_scope": True})
+        except Exception as error:
+            print(f"ask: failed to log out-of-scope inquiry: {error}")
+        else:
+            asyncio.create_task(
+                check_abnormal_usage(current_user.user_id, db)
+            )
         return QueryResponse(
             inquiry_id=inquiry.inquiry_id, question=body.question,
             answer=OUT_OF_SCOPE_MESSAGE, confidence=0.0,
@@ -90,7 +189,22 @@ async def ask(
             context=None, escalated=False, session_id=body.session_id,
         )
 
-    chunks, source_filename, _, search_results = await _retrieve_chunks(body.question, db, qdrant)
+    within_limit = await check_user_daily_limit(
+        current_user.user_id, db,
+        limit=settings.RATE_LIMIT_QUERIES_PER_DAY,
+    )
+    if not within_limit:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"You have reached your daily limit of "
+                f"{settings.RATE_LIMIT_QUERIES_PER_DAY} "
+                f"questions. Your limit resets at midnight. "
+                f"Please try again tomorrow."
+            ),
+        )
+
+    chunks, source_filename, _, search_results = await _retrieve_chunks(clean_question, db, qdrant)
     if not chunks:
         raise HTTPException(status_code=503, detail="Knowledge base is empty.")
 
@@ -103,7 +217,7 @@ async def ask(
     else:
         base_confidence = 0.0
 
-    result     = generate_answer(body.question, chunks)
+    result     = await generate_answer(clean_question, chunks)
     answer     = result["answer"]
     is_fallback = any(p in answer.lower() for p in FALLBACK_PHRASES)
     confidence  = 0.0 if is_fallback else base_confidence
@@ -118,7 +232,15 @@ async def ask(
         source_filename=source_filename,
         escalated=escalated,
     )
-    await db.inquiries.insert_one(inquiry.model_dump())
+    try:
+        await db.inquiries.insert_one(inquiry.model_dump())
+    except Exception as error:
+        # Continue because logging failure must not withhold the answer.
+        print(f"ask: failed to log inquiry: {error}")
+    else:
+        asyncio.create_task(
+            check_abnormal_usage(current_user.user_id, db)
+        )
 
     return QueryResponse(
         inquiry_id=inquiry.inquiry_id, question=body.question,
@@ -131,7 +253,10 @@ async def ask(
 
 # ── Streaming endpoint ─────────────────────────────────────────────────────────
 @router.post("/stream")
+@limiter.limit("10/minute")
+@limiter.limit("100/day")
 async def ask_stream(
+    request: Request,
     body: QueryRequest,
     current_user: TokenPayload = Depends(get_current_user),
 ):
@@ -145,10 +270,11 @@ async def ask_stream(
       data: {"token": " enrollment..."}
       data: {"done": true, "inquiry_id": "...", "confidence": 0.85, ...}
     """
+    clean_question = sanitize_question(body.question)
     db     = get_db()
     qdrant = get_qdrant()
 
-    in_scope, _ = is_in_scope(body.question)
+    in_scope, _ = is_in_scope(clean_question)
 
     if not in_scope:
         # Stream the out-of-scope message then done
@@ -159,7 +285,14 @@ async def ask_stream(
             answer=OUT_OF_SCOPE_MESSAGE,
             confidence=0.0, source_filename=None, escalated=False,
         )
-        await db.inquiries.insert_one({**inquiry.model_dump(), "out_of_scope": True})
+        try:
+            await db.inquiries.insert_one({**inquiry.model_dump(), "out_of_scope": True})
+        except Exception as error:
+            print(f"ask_stream: failed to log out-of-scope inquiry: {error}")
+        else:
+            asyncio.create_task(
+                check_abnormal_usage(current_user.user_id, db)
+            )
 
         async def scope_stream():
             yield f"data: {json.dumps({'token': OUT_OF_SCOPE_MESSAGE})}\n\n"
@@ -170,7 +303,22 @@ async def ask_stream(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    chunks, source_filename, _, search_results = await _retrieve_chunks(body.question, db, qdrant)
+    within_limit = await check_user_daily_limit(
+        current_user.user_id, db,
+        limit=settings.RATE_LIMIT_QUERIES_PER_DAY,
+    )
+    if not within_limit:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"You have reached your daily limit of "
+                f"{settings.RATE_LIMIT_QUERIES_PER_DAY} "
+                f"questions. Your limit resets at midnight. "
+                f"Please try again tomorrow."
+            ),
+        )
+
+    chunks, source_filename, _, search_results = await _retrieve_chunks(clean_question, db, qdrant)
     if not chunks:
         raise HTTPException(status_code=503, detail="Knowledge base is empty.")
 
@@ -190,7 +338,7 @@ async def ask_stream(
         full_answer = ""
 
         # Stream tokens from Groq
-        async for token in stream_answer_async(body.question, chunks):
+        async for token in stream_answer_async(clean_question, chunks):
             full_answer += token
             # Escape the token for JSON safety
             yield f"data: {json.dumps({'token': token})}\n\n"
@@ -211,7 +359,15 @@ async def ask_stream(
             source_filename=source_filename,
             escalated=escalated,
         )
-        await db.inquiries.insert_one(inquiry.model_dump())
+        try:
+            await db.inquiries.insert_one(inquiry.model_dump())
+        except Exception as error:
+            # Continue streaming completion because logging is non-critical.
+            print(f"ask_stream: failed to log inquiry: {error}")
+        else:
+            asyncio.create_task(
+                check_abnormal_usage(current_user.user_id, db)
+            )
 
         # Send completion event with all metadata the frontend needs
         yield f"data: {json.dumps({'done': True, 'inquiry_id': inquiry_id, 'confidence': confidence, 'confidence_label': confidence_label(confidence), 'source_filename': source_filename, 'escalated': escalated, 'session_id': body.session_id})}\n\n"
@@ -419,3 +575,39 @@ async def submit_feedback(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Inquiry not found.")
     return {"message": "Feedback recorded."}
+
+
+# ── Admin: usage statistics ───────────────────────────────────────────────────
+@router.get("/usage-stats")
+async def usage_stats(
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Admin only: today's usage summary."""
+    require_admin(current_user)
+    db = get_db()
+    today = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+    total = await db.inquiries.count_documents({
+        "created_at": {"$gte": today},
+    })
+    scoped = await db.inquiries.count_documents({
+        "created_at": {"$gte": today},
+        "out_of_scope": True,
+    })
+    users = len(await db.inquiries.distinct(
+        "user_id", {"created_at": {"$gte": today}}
+    ))
+    llm_calls = total - scoped
+
+    return {
+        "date": today.date().isoformat(),
+        "total_queries_today": total,
+        "out_of_scope_today": scoped,
+        "unique_users_today": users,
+        "llm_calls_today": llm_calls,
+        "estimated_tokens": llm_calls * 585,
+        "estimated_cost_usd": round(llm_calls * 0.00038, 4),
+        "daily_limit_per_user": settings.RATE_LIMIT_QUERIES_PER_DAY,
+    }

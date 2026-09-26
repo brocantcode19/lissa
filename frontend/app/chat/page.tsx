@@ -184,44 +184,84 @@ function ChatContent() {
     const streamId = `streaming-${Date.now()}`;
     setMessages((p) => [...p, { id: streamId, role: "assistant", content: "", isStreaming: true }]);
     try {
-      const res = await fetch("/api/proxy/query/stream", {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text, session_id: currentSession }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
-      const reader  = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let   buffer  = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
-          try {
-            const parsed = JSON.parse(raw);
-            if (parsed.token !== undefined) {
-              setMessages((p) => p.map((m) => m.id === streamId ? { ...m, content: m.content + parsed.token } : m));
-              bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      let retryCount = 0;
+      const MAX_RETRIES = 1;
+
+      const attemptFetch = async (): Promise<void> => {
+        try {
+          const res = await fetch("/api/proxy/query/stream", {
+            method: "POST", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: text, session_id: currentSession }),
+          });
+          if (!res.ok) {
+            const e = await res.json();
+            const msg = res.status === 429
+              ? e.detail
+              : (e.detail || "An error occurred. Please try again.");
+            throw new Error(msg);
+          }
+          const reader  = res.body!.getReader();
+          const decoder = new TextDecoder();
+          let   buffer  = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const raw = line.slice(6).trim();
+              if (!raw) continue;
+              try {
+                const parsed = JSON.parse(raw);
+                if (parsed.token !== undefined) {
+                  setMessages((p) => p.map((m) => m.id === streamId ? { ...m, content: m.content + parsed.token } : m));
+                  bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                }
+                if (parsed.done) {
+                  setMessages((p) => p.map((m) => m.id === streamId ? {
+                    ...m, id: parsed.inquiry_id, isStreaming: false,
+                    inquiry_id: parsed.inquiry_id, confidence: parsed.confidence,
+                    confidence_label: parsed.confidence_label,
+                    source_filename: parsed.source_filename, escalated: parsed.escalated,
+                  } : m));
+                  setActiveSession(parsed.session_id || currentSession);
+                  setSessions(prev => {
+                    const sessionId = parsed.session_id || currentSession;
+                    const exists = prev.find(s => s.session_id === sessionId);
+                    if (exists) {
+                      return prev.map(s =>
+                        s.session_id === sessionId
+                          ? { ...s, count: s.count + 1 }
+                          : s
+                      );
+                    }
+                    return [{
+                      session_id: sessionId,
+                      title: text,
+                      count: 1,
+                      created_at: new Date().toISOString(),
+                      inquiries: [],
+                    }, ...prev];
+                  });
+                }
+              } catch { /* skip */ }
             }
-            if (parsed.done) {
-              setMessages((p) => p.map((m) => m.id === streamId ? {
-                ...m, id: parsed.inquiry_id, isStreaming: false,
-                inquiry_id: parsed.inquiry_id, confidence: parsed.confidence,
-                confidence_label: parsed.confidence_label,
-                source_filename: parsed.source_filename, escalated: parsed.escalated,
-              } : m));
-              setActiveSession(parsed.session_id || currentSession);
-              loadSessions();
-            }
-          } catch { /* skip */ }
+          }
+        } catch (err) {
+          if (retryCount < MAX_RETRIES && err instanceof TypeError) {
+            retryCount++;
+            console.warn(`Network error. Retrying... (${retryCount})`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return attemptFetch();
+          }
+          throw err;
         }
-      }
+      };
+
+      await attemptFetch();
     } catch (err: unknown) {
       setMessages((p) => p.map((m) => m.id === streamId
         ? { ...m, content: err instanceof Error ? err.message : "An error occurred.", isStreaming: false } : m));

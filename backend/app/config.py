@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "openai/gpt-oss-120b"
 
+    # Rate limiting
+    RATE_LIMIT_QUERIES_PER_MINUTE: int = 10
+    RATE_LIMIT_QUERIES_PER_DAY: int = 100
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 5
+    RATE_LIMIT_UPLOAD_PER_DAY: int = 20
+
     # Modern Pydantic V2 settings configuration
     model_config = SettingsConfigDict(
         env_file=".env",

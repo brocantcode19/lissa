@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from app.config import settings
-from app.database import connect_mongodb, disconnect_mongodb, connect_qdrant
+from app.database import connect_mongodb, disconnect_mongodb, connect_qdrant, get_db
 from app.services.rag_service import load_models
-from app.routers import auth, documents, query
 
 
 @asynccontextmanager
@@ -17,6 +20,9 @@ async def lifespan(app: FastAPI):
         print("⚠ SKIP_STARTUP set — skipping MongoDB, Qdrant and ML model startup (dev mode)")
     else:
         await connect_mongodb()
+        await get_db().failed_logins.create_index(
+            "timestamp", expireAfterSeconds=900
+        )
         await connect_qdrant()
         load_models()          # loads all-MiniLM-L6-v2 + roberta-base-squad2
     print("✅ All systems ready. LISSA is online.")
@@ -32,6 +38,24 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+
+async def rate_limit_exceeded_handler(
+    request: Request, exc: RateLimitExceeded
+):
+    retry_after = request.headers.get("Retry-After")
+    detail = "Rate limit exceeded."
+    if retry_after:
+        detail = f"Rate limit exceeded. Try again in {retry_after} seconds."
+    return JSONResponse(status_code=429, content={"detail": detail})
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+from app.routers import auth, documents, query
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,6 +1,7 @@
 import os
 import uuid
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Request
+from app.main import limiter
 from app.models.document import DocumentInDB, DocumentPublic
 from app.models.user import TokenPayload
 from app.services.auth_service import get_current_user, require_admin
@@ -15,7 +16,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/", response_model=DocumentPublic)
+@limiter.limit("5/hour")
+@limiter.limit("20/day")
 async def upload_document(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user),

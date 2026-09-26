@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, HTTPException, Response, Depends, Request
+from app.main import limiter
 from app.models.user import UserLogin, UserCreate, UserPublic, UserInDB, TokenPayload
 from app.services.auth_service import (
     hash_password,
@@ -13,12 +14,40 @@ from datetime import datetime
 router = APIRouter()
 
 
+async def record_failed_login(ip: str, db) -> int:
+    """Record a failed login and return failures from the last 15 minutes."""
+    from datetime import timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    await db.failed_logins.insert_one({
+        "ip": ip,
+        "timestamp": now,
+    })
+    fifteen_min_ago = now - timedelta(minutes=15)
+    return await db.failed_logins.count_documents({
+        "ip": ip,
+        "timestamp": {"$gte": fifteen_min_ago},
+    })
+
+
 @router.post("/login")
-async def login(credentials: UserLogin, response: Response):
+@limiter.limit("5/minute")
+@limiter.limit("20/day")
+async def login(request: Request, credentials: UserLogin, response: Response):
     db = get_db()
     user = await db.users.find_one({"email_address": credentials.email_address})
 
     if not user or not verify_password(credentials.password, user["password_hash"]):
+        request_ip = request.client.host if request.client else "unknown"
+        failures = await record_failed_login(request_ip, db)
+        if failures >= 10:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Too many failed login attempts. "
+                    "Please wait 15 minutes before trying again."
+                ),
+            )
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.get("is_active", True):
@@ -61,7 +90,9 @@ async def get_me(current_user: TokenPayload = Depends(get_current_user)):
 
 
 @router.post("/register")
-async def register(data: UserCreate):
+@limiter.limit("3/minute")
+@limiter.limit("10/day")
+async def register(request: Request, data: UserCreate):
     """
     Student self-registration.
     Admins can only be created via the seed script or by another admin.
