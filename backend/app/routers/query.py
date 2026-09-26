@@ -147,8 +147,33 @@ async def _retrieve_chunks(question: str, db, qdrant):
             ),
         )
 
-    chunks          = rerank_chunks(question, [h.payload["text"] for h in search_results])
-    source_filename = search_results[0].payload.get("filename")
+    extracted_texts = []
+    flat_results = []
+    for h in search_results:
+        items = h if isinstance(h, (list, tuple)) else [h]
+        for sub_item in items:
+            flat_results.append(sub_item)
+            if hasattr(sub_item, "payload") and sub_item.payload:
+                extracted_texts.append(sub_item.payload.get("text", ""))
+            elif isinstance(sub_item, dict):
+                payload = sub_item.get("payload", sub_item)
+                if isinstance(payload, dict):
+                    extracted_texts.append(payload.get("text", ""))
+            elif isinstance(sub_item, str):
+                extracted_texts.append(sub_item)
+    extracted_texts = [text for text in extracted_texts if text]
+    chunks = rerank_chunks(question, extracted_texts)
+
+    source_filename = None
+    for result in flat_results:
+        if hasattr(result, "payload") and result.payload:
+            source_filename = result.payload.get("filename")
+            break
+        if isinstance(result, dict):
+            payload = result.get("payload", result)
+            if isinstance(payload, dict) and payload.get("filename"):
+                source_filename = payload["filename"]
+                break
     return chunks, source_filename, active_docs, search_results
 
 
@@ -209,7 +234,12 @@ async def ask(
         raise HTTPException(status_code=503, detail="Knowledge base is empty.")
 
     if search_results:
-        top_score = search_results[0].score
+        first_result = search_results[0]
+        top_score = (
+            getattr(first_result, "score", 0.0)
+            if not isinstance(first_result, dict)
+            else first_result.get("score", 0.0)
+        )
         retrieval_confidence = min(float(top_score), 1.0)
         base_confidence = round(
             (retrieval_confidence * 0.7) + (0.85 * 0.3), 4
@@ -323,7 +353,12 @@ async def ask_stream(
         raise HTTPException(status_code=503, detail="Knowledge base is empty.")
 
     if search_results:
-        top_score = search_results[0].score
+        first_result = search_results[0]
+        top_score = (
+            getattr(first_result, "score", 0.0)
+            if not isinstance(first_result, dict)
+            else first_result.get("score", 0.0)
+        )
         retrieval_confidence = min(float(top_score), 1.0)
         base_confidence = round(
             (retrieval_confidence * 0.7) + (0.85 * 0.3), 4
