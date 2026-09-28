@@ -121,7 +121,9 @@ function ChatContent() {
   const [currentSession, setCurrentSession] = useState<string>(generateSessionId);
   const [feedbackGiven,  setFeedbackGiven]  = useState<Set<string>>(new Set());
   const [searchQuery,    setSearchQuery]    = useState("");
-  const [sidebarOpen,    setSidebarOpen]    = useState(true);
+  const [sidebarOpen,    setSidebarOpen]    = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -296,12 +298,21 @@ function ChatContent() {
 
       {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       {sidebarOpen && (
-        <aside className="w-72 sidebar-gradient flex flex-col shrink-0 overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={cn(
+        "fixed md:relative inset-y-0 left-0 z-30 md:z-auto w-72 sidebar-gradient flex flex-col shrink-0 overflow-hidden transform transition-transform duration-300 ease-in-out",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:hidden"
+      )}>
 
           {/* Logo row */}
           <div className="flex items-center justify-between px-5 pt-5 pb-4">
             <h1 className="font-serif font-bold italic text-2xl text-white tracking-wide">Ask LISSA</h1>
-            <button onClick={() => setSidebarOpen(false)} className="text-gold hover:opacity-75 transition-opacity p-1">
+            <button onClick={() => setSidebarOpen(false)} className="text-gold hover:opacity-75 transition-opacity p-2 min-h-[44px]">
               <Menu size={20} />
             </button>
           </div>
@@ -439,35 +450,32 @@ function ChatContent() {
               <LogOut size={13} /> Sign out
             </Button>
           </div>
-        </aside>
-      )}
+      </aside>
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white overflow-hidden min-w-0">
 
         {/* Top bar */}
-        <div className="flex items-center gap-3 px-6 py-3.5 border-b border-border shrink-0">
-          {!sidebarOpen && (
-            <button onClick={() => setSidebarOpen(true)} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
-              <Menu size={20} />
-            </button>
-          )}
-          <p className="flex-1 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 px-4 py-3 md:px-6 md:py-3.5 border-b border-border shrink-0">
+          <button onClick={() => setSidebarOpen(p => !p)} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
+            <Menu size={20} />
+          </button>
+          <p className="flex-1 text-sm text-muted-foreground truncate">
             {activeSession
               ? `Session · ${sessions.find(s => s.session_id === activeSession)?.count || ""} questions`
               : "New conversation"}
           </p>
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-8 py-6 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6 flex flex-col">
 
           {/* Empty state */}
           {messages.length === 0 && (
-            <div className="flex-1 flex flex-col justify-center max-w-2xl pb-16">
+            <div className="flex-1 flex flex-col justify-center max-w-2xl pb-8 md:pb-16">
               <div className="flex items-center gap-4 mb-5">
                 <Image src="/ldcu-crest.png" alt="LdCU" width={44} height={44} className="w-11 h-11 object-contain"
                   onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
@@ -475,13 +483,13 @@ function ChatContent() {
                   Hello! {user?.full_name?.split(" ")[0] || "Student"}
                 </p>
               </div>
-              <h2 className="font-serif font-bold italic text-3xl text-foreground mb-7 leading-snug">
+              <h2 className="font-serif font-bold italic text-2xl md:text-3xl text-foreground mb-5 md:mb-7 leading-snug">
                 How can I make things a bit easier for you today?
               </h2>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2 md:gap-3">
                 {QUICK_ACTIONS.map(({ label, query, Icon }) => (
                   <button key={label} onClick={() => sendMessage(query)}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-transparent border-[1.5px] border-[rgba(201,160,48,0.4)] text-[#1A1A1A] rounded-xl text-sm font-sans font-semibold not-italic hover:bg-gold/10 hover:border-gold hover:text-maroon transition-colors">
+                    className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 md:px-5 bg-transparent border-[1.5px] border-[rgba(201,160,48,0.4)] text-[#1A1A1A] rounded-xl text-sm font-sans font-semibold not-italic hover:bg-gold/10 hover:border-gold hover:text-maroon transition-colors">
                     <Icon size={14} />
                     <span>{label}</span>
                   </button>
@@ -502,7 +510,7 @@ function ChatContent() {
                   </Avatar>
                 )}
 
-                <div className="max-w-xl flex flex-col gap-1.5">
+                <div className="max-w-[85%] md:max-w-xl flex flex-col gap-1.5">
                   {/* Bubble */}
                   <div className={cn(
                     "px-4 py-3 text-sm leading-relaxed relative",
@@ -561,7 +569,7 @@ function ChatContent() {
         </div>
 
         {/* Input bar */}
-        <div className="bg-[#2A2A2A] px-4 py-3 shrink-0 border-t border-white/10">
+        <div className="bg-[#2A2A2A] px-3 py-3 md:px-5 md:py-3.5 shrink-0 border-t border-white/10">
           <div className="flex items-end gap-3 bg-[#3A3A3A] rounded-xl px-4 py-3 border border-white/10 focus-within:border-white/25 transition-colors">
             <div className="w-px h-5 bg-white/20 shrink-0 mb-0.5" />
             <Textarea
@@ -589,12 +597,12 @@ function ChatContent() {
               size="sm"
               onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
-              className="px-4 shrink-0 self-end">
+              className="px-4 min-h-[44px] shrink-0 self-end">
               <Send size={14} />
               Send
             </Button>
           </div>
-          <p className="text-center text-[11px] text-white/30 mt-2">
+          <p className="text-center text-[10px] md:text-[11px] text-white/30 mt-1.5 md:mt-2 px-4">
             LISSA may occasionally provide inaccurate information. Always verify important details with the university office.
           </p>
         </div>

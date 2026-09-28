@@ -35,11 +35,11 @@ function RegisterContent() {
   };
 
   return (
-    <main className="flex h-screen overflow-hidden font-sans">
+    <main className="flex flex-col md:flex-row min-h-screen overflow-hidden font-sans">
 
       {/* ── Left panel ─────────────────────────────────────────────────── */}
       <div
-        className="flex-1 flex flex-col items-center justify-center px-10 py-16 relative"
+        className="flex flex-col items-center justify-center px-8 py-12 md:flex-1 md:px-10 md:py-16 relative"
         style={{ background: "radial-gradient(ellipse at 40% 40%, #3D1010 0%, #1A0606 65%)" }}
       >
         <div className="absolute inset-0 pointer-events-none"
@@ -48,7 +48,7 @@ function RegisterContent() {
         <div className="relative text-center flex flex-col items-center">
           <div className="mb-7">
             <Image src="/ldcu-crest.png" alt="LdCU seal" width={144} height={144}
-              className="w-36 h-36 object-contain"
+              className="w-24 h-24 md:w-36 md:h-36 object-contain"
               onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
           </div>
           <h1 className="font-serif font-bold italic text-5xl text-white mb-2 tracking-wide">LISSA</h1>
@@ -57,9 +57,9 @@ function RegisterContent() {
       </div>
 
       {/* ── Right panel ────────────────────────────────────────────────── */}
-      <div className="w-[480px] bg-white flex flex-col justify-center px-14 py-16 shrink-0 overflow-y-auto">
+      <div className="w-full md:w-[480px] bg-white flex flex-col justify-center px-6 py-10 md:px-14 md:py-16 shrink-0 overflow-y-auto">
 
-        <h2 className="font-serif font-bold italic text-4xl text-foreground mb-2">
+        <h2 className="font-serif font-bold italic text-3xl md:text-4xl text-foreground mb-2">
           Create Account
         </h2>
         <p className="text-muted-foreground text-sm mb-8">

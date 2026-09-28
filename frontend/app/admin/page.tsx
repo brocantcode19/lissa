@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, FileText, MessageSquare, BarChart2, Upload, Trash2, RefreshCw, ChevronDown, LogOut, X, AlertTriangle, FileStack, Target, MessagesSquare, ThumbsUp, BarChart3, ThumbsDown, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FileText, MessageSquare, BarChart2, Upload, Trash2, RefreshCw, ChevronDown, LogOut, X, AlertTriangle, FileStack, Target, MessagesSquare, ThumbsUp, BarChart3, ThumbsDown, Menu, type LucideIcon } from "lucide-react";
 
 interface Doc {
   doc_id: string; filename: string;
@@ -126,6 +126,9 @@ function AdminContent() {
   const [uploading,    setUploading]    = useState(false);
   const [dragOver,     setDragOver]     = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
   const [deletingId,   setDeletingId]   = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -251,16 +254,16 @@ function AdminContent() {
   ] as { key: Tab; label: string; Icon: LucideIcon }[];
 
   const StatCard = ({ label, value, sub, subColor, icon: Icon }: { label:string; value:string; sub:string; subColor:string; icon:LucideIcon }) => (
-    <Card className="bg-[#FAFAF8]">
-      <CardHeader>
+    <Card className="bg-[#FAFAF8] p-1">
+      <CardHeader className="pb-1 pt-4 px-4 md:p-5">
         <div className="flex items-start justify-between">
           <CardTitle>{label}</CardTitle>
           <span className="w-10 h-10 rounded-xl bg-maroon/8 flex items-center justify-center text-maroon"><Icon size={18} /></span>
         </div>
       </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-bold text-foreground mb-1">{value}</p>
-        <p className={cn("text-xs font-medium", subColor)}>{sub}</p>
+      <CardContent className="px-4 pb-4 md:px-5 md:pb-5">
+        <p className="text-2xl md:text-3xl font-bold text-foreground mb-1">{value}</p>
+        <p className={cn("text-xs font-medium truncate", subColor)}>{sub}</p>
       </CardContent>
     </Card>
   );
@@ -269,7 +272,17 @@ function AdminContent() {
     <div className="flex h-screen overflow-hidden font-sans">
 
       {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-      <aside className="w-56 sidebar-gradient flex flex-col shrink-0">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={cn(
+        "fixed lg:relative inset-y-0 left-0 z-30 lg:z-auto w-56 sidebar-gradient flex flex-col shrink-0 transform transition-transform duration-300",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
         <div className="px-5 pt-5 pb-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-gold flex items-center justify-center text-lg">🤖</div>
@@ -285,7 +298,7 @@ function AdminContent() {
           {navItems.map(({ key, label, Icon }) => (
             <button key={key} onClick={() => handleTabChange(key)}
               className={cn(
-                "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium mb-0.5 transition-colors text-left",
+                "w-full min-h-[44px] flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium mb-0.5 transition-colors text-left",
                 "border-l-2",
                 tab === key
                   ? "bg-gold/10 text-gold border-l-2 border-gold"
@@ -320,15 +333,18 @@ function AdminContent() {
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col bg-[#F4F3EF] overflow-hidden">
+      <main className="flex-1 flex flex-col bg-[#F4F3EF] overflow-hidden min-w-0">
 
         {/* Header */}
-        <header className="bg-white border-b border-border px-7 py-3.5 flex items-center gap-4 shrink-0">
-          <div className="flex-1">
-            <p className="font-bold text-base text-foreground">LISSA: Admin Curator</p>
-            <p className="text-[11px] text-muted-foreground">AI Student Support Agent Dashboard</p>
+        <header className="bg-white border-b border-border px-4 py-3 md:px-7 md:py-3.5 flex items-center gap-3 md:gap-4 shrink-0">
+          <button onClick={() => setSidebarOpen(p => !p)} className="lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0" aria-label="Toggle navigation">
+            <Menu size={20} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm md:text-base text-foreground truncate">LISSA: Admin Curator</p>
+            <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">AI Student Support Agent Dashboard</p>
           </div>
-          <div className="flex items-center gap-2 bg-gray-50 border border-border rounded-lg px-3 py-2 w-56">
+          <div className="hidden md:flex items-center gap-2 bg-gray-50 border border-border rounded-lg px-3 py-2 w-56">
             <svg className="w-3.5 h-3.5 text-muted-foreground shrink-0" fill="none" viewBox="0 0 15 15">
               <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
               <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -377,7 +393,7 @@ function AdminContent() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto p-7">
+        <div className="flex-1 overflow-y-auto p-4 md:p-7">
 
           {/* ── OVERVIEW ──────────────────────────────────────────────────── */}
           {tab === "overview" && (
@@ -385,7 +401,7 @@ function AdminContent() {
               <h1 className="text-xl font-bold text-foreground mb-1">Dashboard Overview</h1>
               <p className="text-sm text-muted-foreground mb-6">Monitor and manage the AI Student Support Agent</p>
 
-              <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-5 md:mb-6">
                 <StatCard label="Total Indexed Documents" value={stats.indexed.toString()}
                   sub={`${docs.length} total uploaded`} subColor="text-green-600" icon={FileStack} />
                 <StatCard label="Avg. Confidence Score" value={stats.avgConf.toFixed(2)}
@@ -409,7 +425,8 @@ function AdminContent() {
                     <Upload size={14} /> Upload Document
                   </Button>
                 </div>
-                <Table>
+                <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                <Table className="min-w-[600px] md:min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>File Name</TableHead>
@@ -441,6 +458,7 @@ function AdminContent() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </Card>
 
               {/* Recent queries */}
@@ -502,7 +520,8 @@ function AdminContent() {
                 <div className="px-6 py-4 border-b border-border">
                   <p className="font-semibold text-foreground">Uploaded Documents ({docs.length})</p>
                 </div>
-                <Table>
+                <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                <Table className="min-w-[600px] md:min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>File Name</TableHead>
@@ -558,6 +577,7 @@ function AdminContent() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </Card>
             </div>
           )}
@@ -565,15 +585,15 @@ function AdminContent() {
           {/* ── INTERACTIONS ──────────────────────────────────────────────── */}
           {tab === "interactions" && (
             <div>
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div>
-                  <h1 className="text-xl font-bold text-foreground mb-1">
+                  <h1 className="text-lg md:text-xl font-bold text-foreground mb-1">
                     {searchQuery ? `Interaction Logs (${filteredInquiries.length} of ${inquiries.length})` : "Interaction Logs"}
                   </h1>
                   <p className="text-sm text-muted-foreground">All student questions and LISSA responses</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="gap-1.5">
+                  <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="min-h-[44px] gap-1.5">
                     <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
                     {refreshing ? "Refreshing..." : "Refresh"}
                   </Button>
@@ -582,7 +602,7 @@ function AdminContent() {
                       if (!confirm(`Delete all ${inquiries.length} inquiries?`)) return;
                       const r = await fetch("/api/proxy/query/clear", { method:"DELETE", credentials:"include" });
                       if (r.ok) setInquiries([]);
-                    }} className="gap-1.5">
+                    }} className="min-h-[44px] gap-1.5">
                     <Trash2 size={13} /> Clear All
                   </Button>
                 </div>
@@ -682,7 +702,7 @@ function AdminContent() {
               <h1 className="text-xl font-bold text-foreground mb-1">Feedback Analytics</h1>
               <p className="text-sm text-muted-foreground mb-6">Student satisfaction and response quality metrics</p>
 
-              <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-5 md:mb-6">
                 <StatCard label="Total Feedback" value={(stats.thumbsUp+stats.thumbsDown).toString()} sub={`of ${stats.queries} total queries`} subColor="text-muted-foreground" icon={BarChart3} />
                 <StatCard label="Positive Feedback" value={stats.thumbsUp.toString()} sub={stats.queries > 0 ? `${((stats.thumbsUp/stats.queries)*100).toFixed(1)}%` : "No data"} subColor="text-green-600" icon={ThumbsUp} />
                 <StatCard label="Negative Feedback" value={stats.thumbsDown.toString()} sub={stats.queries > 0 ? `${((stats.thumbsDown/stats.queries)*100).toFixed(1)}%` : "No data"} subColor="text-red-600" icon={ThumbsDown} />
