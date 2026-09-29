@@ -71,11 +71,18 @@ app.include_router(documents.router, prefix="/api/documents", tags=["Documents"]
 app.include_router(query.router,     prefix="/api/query",     tags=["Query"])
 
 
-@app.get("/health", tags=["Health"])
+@app.get("/health")
 async def health():
     return {
-        "status": "ok",
-        "service": "LISSA API",
-        "version": "2.0.0",
-        "environment": settings.ENVIRONMENT,
+        "status": "online",
+        "service": "LISSA Backend",
+        "models_loaded": _models_ready(),
     }
+
+
+def _models_ready() -> bool:
+    try:
+        from app.services.rag_service import _embedder, _groq_client
+        return _embedder is not None and _groq_client is not None
+    except Exception:
+        return False
