@@ -31,8 +31,8 @@ async def record_failed_login(ip: str, db) -> int:
 
 
 @router.post("/login")
-@limiter.limit("5/minute")
-@limiter.limit("20/day")
+@limiter.limit("30/minute")
+@limiter.limit("200/day")
 async def login(request: Request, credentials: UserLogin, response: Response):
     db = get_db()
     user = await db.users.find_one({"email_address": credentials.email_address})
@@ -90,8 +90,8 @@ async def get_me(current_user: TokenPayload = Depends(get_current_user)):
 
 
 @router.post("/register")
-@limiter.limit("3/minute")
-@limiter.limit("10/day")
+@limiter.limit("10/minute")
+@limiter.limit("50/day")
 async def register(request: Request, data: UserCreate):
     """
     Student self-registration.
