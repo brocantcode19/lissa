@@ -197,9 +197,15 @@ function ChatContent() {
             body: JSON.stringify({ question: text, session_id: currentSession }),
           });
           if (!res.ok) {
-            const e = await res.json();
+            const rawError = await res.text();
+            let e: { detail?: string } = {};
+            try {
+              e = JSON.parse(rawError);
+            } catch {
+              e.detail = rawError.trim();
+            }
             const msg = res.status === 429
-              ? e.detail
+              ? (e.detail || "Too many requests. Please try again shortly.")
               : (e.detail || "An error occurred. Please try again.");
             throw new Error(msg);
           }

@@ -68,6 +68,7 @@ async def connect_qdrant():
             collection_name=settings.QDRANT_COLLECTION,
             field_name="doc_id",
             field_schema=models.PayloadSchemaType.KEYWORD,
+            wait=True,
         )
     except Exception as e:
         print(f"Payload index notice for doc_id: {e}")

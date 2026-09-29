@@ -147,20 +147,28 @@ async def _retrieve_chunks(question: str, db, qdrant):
             ),
         )
 
-    extracted_texts = []
     flat_results = []
-    for h in search_results:
-        items = h if isinstance(h, (list, tuple)) else [h]
-        for sub_item in items:
-            flat_results.append(sub_item)
-            if hasattr(sub_item, "payload") and sub_item.payload:
-                extracted_texts.append(sub_item.payload.get("text", ""))
-            elif isinstance(sub_item, dict):
-                payload = sub_item.get("payload", sub_item)
-                if isinstance(payload, dict):
-                    extracted_texts.append(payload.get("text", ""))
-            elif isinstance(sub_item, str):
-                extracted_texts.append(sub_item)
+    def flatten_results(item):
+        if isinstance(item, (list, tuple)):
+            for nested_item in item:
+                flatten_results(nested_item)
+        else:
+            flat_results.append(item)
+
+    for result in search_results:
+        flatten_results(result)
+
+    extracted_texts = []
+    for result in flat_results:
+        if hasattr(result, "payload") and result.payload:
+            extracted_texts.append(result.payload.get("text", ""))
+        elif isinstance(result, dict):
+            payload = result.get("payload", result)
+            if isinstance(payload, dict) and "text" in payload:
+                extracted_texts.append(payload["text"])
+        elif isinstance(result, str):
+            extracted_texts.append(result)
+
     extracted_texts = [text for text in extracted_texts if text]
     chunks = rerank_chunks(question, extracted_texts)
 
@@ -174,7 +182,7 @@ async def _retrieve_chunks(question: str, db, qdrant):
             if isinstance(payload, dict) and payload.get("filename"):
                 source_filename = payload["filename"]
                 break
-    return chunks, source_filename, active_docs, search_results
+    return chunks, source_filename, active_docs, flat_results
 
 
 # ── Standard (non-streaming) endpoint ─────────────────────────────────────────
