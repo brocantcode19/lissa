@@ -25,6 +25,13 @@ async def lifespan(app: FastAPI):
         )
         await connect_qdrant()
         load_models()          # loads all-MiniLM-L6-v2 + roberta-base-squad2
+        try:
+            from app.database import get_qdrant
+            qdrant = get_qdrant()
+            qdrant.get_collections()
+            print("✅ Qdrant connection warm")
+        except Exception as e:
+            print(f"⚠ Qdrant pre-warm failed: {e}")
     print("✅ All systems ready. LISSA is online.")
     yield
     # ── Shutdown ──────────────────────────────────────────────────────────────

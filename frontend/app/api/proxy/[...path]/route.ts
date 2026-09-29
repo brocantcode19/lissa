@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+export const runtime = 'edge';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
 
 async function proxyRequest(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ path: string[] }> }
-): Promise<NextResponse> {
-  const resolvedParams = await params;
-  const path       = resolvedParams.path.join('/');
-  const backendPath = path === 'documents' ? `${path}/` : path;
-  const backendUrl = `${BACKEND_URL}/api/${backendPath}`;
+): Promise<Response> {
+  const path = (await params).path.join('/');
+  const backendUrl = `${BACKEND_URL}/api/${path}`;
 
   const forwardHeaders: Record<string, string> = {};
 
@@ -17,24 +15,20 @@ async function proxyRequest(
   if (cookie) forwardHeaders['cookie'] = cookie;
 
   const contentType = request.headers.get('content-type');
-  const isMultipart = contentType?.includes('multipart/form-data');
-  if (contentType) {
+  if (contentType && !contentType.includes('multipart/form-data')) {
     forwardHeaders['content-type'] = contentType;
   }
 
-  let body: Buffer | undefined;
+  let body: ArrayBuffer | null = null;
   if (!['GET', 'HEAD'].includes(request.method)) {
-    body = Buffer.from(await request.arrayBuffer());
-    if (isMultipart) {
-      forwardHeaders['content-length'] = String(body.byteLength);
-    }
+    body = await request.arrayBuffer();
   }
 
   try {
     const backendRes = await fetch(backendUrl, {
       method:   request.method,
       headers:  forwardHeaders,
-      body:     body as unknown as BodyInit,
+      body:     body || undefined,
       redirect: 'follow',
     });
 
@@ -44,36 +38,35 @@ async function proxyRequest(
     // Do NOT buffer SSE — return the ReadableStream body as-is.
     // This is what makes streaming work through the Next.js proxy.
     if (resContentType.includes('text/event-stream')) {
-      return new NextResponse(backendRes.body, {
-        status:  backendRes.status,
-        headers: {
-          'Content-Type':      'text/event-stream',
-          'Cache-Control':     'no-cache, no-transform',
-          'X-Accel-Buffering': 'no',
-          'Connection':        'keep-alive',
-          // Forward Set-Cookie if present
-          ...(backendRes.headers.get('set-cookie')
-            ? { 'set-cookie': backendRes.headers.get('set-cookie')! }
-            : {}),
-        },
+      const headers = new Headers({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
+      });
+      const setCookie = backendRes.headers.get('set-cookie');
+      if (setCookie) headers.set('set-cookie', setCookie);
+
+      return new Response(backendRes.body, {
+        status: backendRes.status,
+        headers,
       });
     }
 
-    // ── Normal JSON/binary response ───────────────────────────────────────
-    const responseHeaders = new Headers();
-    if (resContentType) responseHeaders.set('content-type', resContentType);
+    const headers = new Headers();
+    if (resContentType) headers.set('content-type', resContentType);
 
     const setCookie = backendRes.headers.get('set-cookie');
-    if (setCookie) responseHeaders.set('set-cookie', setCookie);
+    if (setCookie) headers.set('set-cookie', setCookie);
 
-    return new NextResponse(backendRes.body, {
-      status:  backendRes.status,
-      headers: responseHeaders,
+    return new Response(backendRes.body, {
+      status: backendRes.status,
+      headers,
     });
 
   } catch (err) {
     console.error('[Proxy Error]', backendUrl, err);
-    return new NextResponse(
+    return new Response(
       JSON.stringify({ detail: 'Could not reach the backend server.' }),
       { status: 503, headers: { 'content-type': 'application/json' } }
     );
