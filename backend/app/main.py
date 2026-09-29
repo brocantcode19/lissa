@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from app.config import settings
 from app.database import connect_mongodb, disconnect_mongodb, connect_qdrant, get_db
 from app.services.rag_service import load_models
@@ -46,7 +45,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-limiter = Limiter(key_func=get_remote_address)
+def get_real_client_ip(request: Request) -> str:
+    x_forwarded_for = request.headers.get("X-Forwarded-For")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+limiter = Limiter(key_func=get_real_client_ip)
 app.state.limiter = limiter
 
 
