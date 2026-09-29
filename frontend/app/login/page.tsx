@@ -29,8 +29,26 @@ function LoginContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email_address: email, password }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || "Login failed"); }
-      const data = await res.json();
+      let data: { detail?: string; message?: string; role?: string } = {};
+      const contentType = res.headers.get("content-type");
+
+      if (contentType?.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch {
+          data = { detail: "Invalid server response." };
+        }
+      } else {
+        const text = await res.text();
+        data = res.status === 429
+          ? { detail: "Too many login attempts. Please wait a minute before trying again." }
+          : { detail: text || `Server error (${res.status})` };
+      }
+
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || "Login failed");
+      }
+
       router.push(data.role === "admin" ? "/admin" : "/chat");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
