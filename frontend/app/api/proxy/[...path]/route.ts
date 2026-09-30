@@ -1,71 +1,39 @@
+import { NextRequest } from 'next/server';
+
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
+const BACKEND_URL =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://backend:8000';
 
-async function proxyRequest(
-  request: Request,
-  { params }: { params: Promise<{ path: string[] }> }
-): Promise<Response> {
-  const path = (await params).path.join('/');
-  const backendUrl = `${BACKEND_URL}/api/${path}`;
-
-  const forwardHeaders: Record<string, string> = {};
-
-  const cookie = request.headers.get('cookie');
-  if (cookie) forwardHeaders['cookie'] = cookie;
-
-  const contentType = request.headers.get('content-type');
-  if (contentType && !contentType.includes('multipart/form-data')) {
-    forwardHeaders['content-type'] = contentType;
-  }
-
-  let body: ArrayBuffer | null = null;
-  if (!['GET', 'HEAD'].includes(request.method)) {
-    body = await request.arrayBuffer();
-  }
+async function proxyRequest(request: NextRequest): Promise<Response> {
+  const path = request.nextUrl.pathname.replace('/api/proxy', '');
+  const backendBase = BACKEND_URL.replace(/\/$/, '');
+  const apiPath = backendBase.endsWith('/api') ? path : `/api${path}`;
+  const targetUrl = `${backendBase}${apiPath}${request.nextUrl.search}`;
+  const headers = new Headers(request.headers);
+  headers.delete('host');
 
   try {
-    const backendRes = await fetch(backendUrl, {
-      method:   request.method,
-      headers:  forwardHeaders,
-      body:     body || undefined,
+    const backendRes = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+      // @ts-ignore - duplex is required for streaming request bodies.
+      duplex: 'half',
       redirect: 'follow',
     });
 
-    const resContentType = backendRes.headers.get('content-type') || '';
-
-    // ── SSE / streaming response — pipe through directly ──────────────────
-    // Do NOT buffer SSE — return the ReadableStream body as-is.
-    // This is what makes streaming work through the Next.js proxy.
-    if (resContentType.includes('text/event-stream')) {
-      const headers = new Headers({
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'X-Accel-Buffering': 'no',
-        'Connection': 'keep-alive',
-      });
-      const setCookie = backendRes.headers.get('set-cookie');
-      if (setCookie) headers.set('set-cookie', setCookie);
-
-      return new Response(backendRes.body, {
-        status: backendRes.status,
-        headers,
-      });
-    }
-
-    const headers = new Headers();
-    if (resContentType) headers.set('content-type', resContentType);
-
-    const setCookie = backendRes.headers.get('set-cookie');
-    if (setCookie) headers.set('set-cookie', setCookie);
-
     return new Response(backendRes.body, {
       status: backendRes.status,
-      headers,
+      headers: backendRes.headers,
     });
 
   } catch (err) {
-    console.error('[Proxy Error]', backendUrl, err);
+    console.error('[Proxy Error]', targetUrl, err);
     return new Response(
       JSON.stringify({ detail: 'Could not reach the backend server.' }),
       { status: 503, headers: { 'content-type': 'application/json' } }
