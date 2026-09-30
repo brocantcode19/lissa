@@ -10,8 +10,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Plus, Settings, LogOut, Menu, Send, Lock, Phone, BookOpen, ClipboardList, Trash2, MessagesSquare } from "lucide-react";
+import { Plus, Settings, LogOut, Menu, Send, Lock, Phone, BookOpen, ClipboardList, MoreVertical, Trash2, MessagesSquare } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Message {
@@ -176,6 +182,24 @@ function ChatContent() {
     setMessages([]); setActiveSession(null);
     setCurrentSession(generateSessionId()); setInput("");
     setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm("Delete this conversation? This cannot be undone.")) return;
+
+    const response = await fetch(
+      `/api/proxy/query/sessions/${sessionId}`,
+      { method: "DELETE", credentials: "include" }
+    );
+    if (!response.ok) return;
+
+    setSessions((previous) => previous.filter((session) => session.session_id !== sessionId));
+    if (activeSession === sessionId) {
+      setMessages([]);
+      setActiveSession(null);
+      setCurrentSession(generateSessionId());
+      router.push("/chat");
+    }
   };
 
   const sendMessage = async (question?: string) => {
@@ -402,30 +426,36 @@ function ChatContent() {
                             </p>
                           </div>
                         </button>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!confirm("Delete this conversation? This cannot be undone.")) return;
-                            const r = await fetch(
-                              `/api/proxy/query/sessions/${session.session_id}`,
-                              { method: "DELETE", credentials: "include" }
-                            );
-                            if (r.ok) {
-                              setSessions(prev => prev.filter(s => s.session_id !== session.session_id));
-                              if (activeSession === session.session_id) {
-                                setMessages([]);
-                                setActiveSession(null);
-                                setCurrentSession(generateSessionId());
-                              }
-                            }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/20 text-white/50 hover:text-red-400 shrink-0"
-                          title="Delete conversation"
-                          aria-label="Delete conversation"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {session.session_id && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(event) => event.stopPropagation()}
+                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-white/20 text-white/50 hover:text-white shrink-0"
+                                title="Chat options"
+                                aria-label={`Options for ${session.title}`}
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="w-36 border-[#3a1d1d] bg-[#2a1414] text-stone-200"
+                            >
+                              <DropdownMenuItem
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handleDeleteSession(session.session_id!);
+                                }}
+                                className="cursor-pointer gap-2 text-red-400 focus:bg-[#3a1d1d] focus:text-red-300"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span>Delete</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     );
                   })}
