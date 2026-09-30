@@ -3,9 +3,8 @@ import uuid as uuid_lib
 import asyncio
 import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from app.main import limiter
 from app.models.query import QueryRequest, QueryResponse, InquiryInDB
 from app.models.user import TokenPayload
 from app.services.auth_service import get_current_user, require_admin
@@ -187,10 +186,7 @@ async def _retrieve_chunks(question: str, db, qdrant):
 
 # ── Standard (non-streaming) endpoint ─────────────────────────────────────────
 @router.post("/", response_model=QueryResponse)
-@limiter.limit("10/minute")
-@limiter.limit("100/day")
 async def ask(
-    request: Request,
     body: QueryRequest,
     current_user: TokenPayload = Depends(get_current_user),
 ):
@@ -291,10 +287,7 @@ async def ask(
 
 # ── Streaming endpoint ─────────────────────────────────────────────────────────
 @router.post("/stream")
-@limiter.limit("10/minute")
-@limiter.limit("100/day")
 async def ask_stream(
-    request: Request,
     body: QueryRequest,
     current_user: TokenPayload = Depends(get_current_user),
 ):
