@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Plus, Settings, LogOut, Menu, Send, Lock, Phone, BookOpen, ClipboardList, MoreHorizontal, Trash2, MessagesSquare } from "lucide-react";
+import { Plus, Settings, LogOut, Menu, PanelLeftOpen, Send, Lock, Phone, BookOpen, ClipboardList, MoreHorizontal, Trash2, MessagesSquare } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Message {
@@ -524,6 +524,16 @@ function ChatContent() {
 
         {/* Top bar */}
         <div className="flex items-center gap-3 px-4 py-3 md:px-6 md:py-3.5 border-b border-border shrink-0">
+          {/* Open Sidebar Button — Rendered ONLY when sidebar is closed */}
+          {!sidebarOpen && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0"
+              title="Open sidebar"
+            >
+              <PanelLeftOpen size={18} />
+            </button>
+          )}
           <p className="flex-1 text-sm text-muted-foreground truncate">
             {activeSession
               ? `Session · ${sessions.find(s => s.session_id === activeSession)?.count || ""} questions`
