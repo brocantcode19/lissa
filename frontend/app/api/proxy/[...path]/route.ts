@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
 
 async function proxyRequest(
@@ -12,7 +15,14 @@ async function proxyRequest(
   const forwardHeaders: Record<string, string> = {};
 
   const cookie = request.headers.get('cookie');
-  if (cookie) forwardHeaders['cookie'] = cookie;
+  if (cookie) {
+    forwardHeaders['cookie'] = cookie;
+  }
+
+  const authorization = request.headers.get('authorization');
+  if (authorization) {
+    forwardHeaders['authorization'] = authorization;
+  }
 
   const contentType = request.headers.get('content-type');
   if (contentType && !contentType.includes('multipart/form-data')) {

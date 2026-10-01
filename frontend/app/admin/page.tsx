@@ -114,6 +114,15 @@ function truncateTitle(title: string) {
   return title.length > 40 ? `${title.slice(0, 40).trimEnd()}…` : title;
 }
 
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+
+  const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+  if (!token) return {};
+
+  return { Authorization: `Bearer ${token}` };
+}
+
 function AdminContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -144,8 +153,21 @@ function AdminContent() {
     setTimeout(() => setRefreshing(false), 600);
   };
 
-  const loadDocs      = useCallback(async () => { const r = await fetch("/api/proxy/documents/",     { credentials:"include" }); if (r.ok) setDocs(await r.json()); }, []);
-  const loadInquiries = useCallback(async () => { const r = await fetch("/api/proxy/query/history", { credentials:"include" }); if (r.ok) setInquiries(await r.json()); }, []);
+  const loadDocs = useCallback(async () => {
+    const r = await fetch("/api/proxy/documents/", {
+      credentials: "include",
+      headers: getAuthHeaders(),
+    });
+    if (r.ok) setDocs(await r.json());
+  }, []);
+
+  const loadInquiries = useCallback(async () => {
+    const r = await fetch("/api/proxy/query/history", {
+      credentials: "include",
+      headers: getAuthHeaders(),
+    });
+    if (r.ok) setInquiries(await r.json());
+  }, []);
 
   useEffect(() => {
     const tabFromUrl = searchParams.get("tab") as Tab;
@@ -192,7 +214,12 @@ function AdminContent() {
     if (!file.name.toLowerCase().endsWith(".pdf")) { alert("Only PDF files accepted."); return; }
     setUploading(true);
     const form = new FormData(); form.append("file", file);
-    const r = await fetch("/api/proxy/documents/", { method:"POST", credentials:"include", body:form });
+    const r = await fetch("/api/proxy/documents/", {
+      method: "POST",
+      credentials: "include",
+      headers: getAuthHeaders(),
+      body: form,
+    });
     if (r.ok) {
       await loadDocs();
       alert(
@@ -205,12 +232,20 @@ function AdminContent() {
   };
 
   const toggleDoc = async (doc_id: string) => {
-    await fetch(`/api/proxy/documents/${doc_id}/toggle`, { method:"PATCH", credentials:"include" });
+    await fetch(`/api/proxy/documents/${doc_id}/toggle`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: getAuthHeaders(),
+    });
     loadDocs();
   };
   const deleteDoc = async (doc_id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    await fetch(`/api/proxy/documents/${doc_id}`, { method:"DELETE", credentials:"include" });
+    await fetch(`/api/proxy/documents/${doc_id}`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: getAuthHeaders(),
+    });
     loadDocs();
   };
   const deleteInquiry = async (inquiry_id: string, question: string) => {
@@ -224,7 +259,11 @@ function AdminContent() {
     try {
       const response = await fetch(
         `/api/proxy/query/${inquiry_id}`,
-        { method: "DELETE", credentials: "include" }
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: getAuthHeaders(),
+        }
       );
 
       if (response.ok) {
