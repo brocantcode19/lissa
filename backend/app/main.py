@@ -55,6 +55,11 @@ app.include_router(documents.router, prefix="/api/documents", tags=["Documents"]
 app.include_router(query.router,     prefix="/api/query",     tags=["Query"])
 
 
+@app.get("/")
+async def health_check():
+    return {"status": "online", "service": "LISSA API"}
+
+
 @app.get("/health")
 async def health():
     return {

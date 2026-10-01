@@ -1,4 +1,5 @@
 import os
+import shutil
 import uuid
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from app.models.document import DocumentInDB, DocumentPublic
@@ -14,47 +15,62 @@ UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-@router.post("/", response_model=DocumentPublic)
+def process_document_background(doc_id: str, file_path: str, filename: str):
+    try:
+        ingest_document(doc_id, file_path, filename)
+    except Exception:
+        db = get_db()
+        db.documents.update_one(
+            {"doc_id": doc_id},
+            {"$set": {"status": "failed", "updated_at": datetime.utcnow()}},
+        )
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+@router.post("", response_model=dict)
+@router.post("/", response_model=dict)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user),
 ):
     """
-    Admin-only: upload a PDF to the knowledge base.
-    The file is saved and ingestion runs in the background
-    so the response returns immediately.
+    Accept a document immediately and process it in the background so the API
+    responds in under a second and avoids proxy timeouts.
     """
     require_admin(current_user)
 
-    # Validate file type
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+    allowed_ext = (".pdf", ".txt", ".md")
+    if not file.filename or not file.filename.lower().endswith(allowed_ext):
+        raise HTTPException(status_code=400, detail="Unsupported file format.")
 
-    # Save file to disk
     doc_id = str(uuid.uuid4())
     safe_name = file.filename.replace(" ", "_")
     file_path = os.path.join(UPLOAD_DIR, f"{doc_id}_{safe_name}")
 
-    contents = await file.read()
     with open(file_path, "wb") as f:
-        f.write(contents)
+        shutil.copyfileobj(file.file, f)
 
-    # Create MongoDB record
     doc = DocumentInDB(
         doc_id=doc_id,
         filename=file.filename,
         file_path=file_path,
         uploaded_by=current_user.user_id,
-        status="pending",
+        status="processing",
     )
     db = get_db()
     await db.documents.insert_one(doc.model_dump())
 
-    # Run ingestion in the background (non-blocking)
-    background_tasks.add_task(ingest_document, doc_id, file_path, file.filename)
+    background_tasks.add_task(process_document_background, doc_id, file_path, file.filename)
 
-    return DocumentPublic(**doc.model_dump())
+    return {
+        "message": "Document uploaded successfully. Indexing is running in the background.",
+        "document_id": doc_id,
+        "filename": file.filename,
+        "status": "processing",
+    }
 
 
 @router.get("/", response_model=list[DocumentPublic])
