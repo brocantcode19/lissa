@@ -3,91 +3,60 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
+const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000').replace(/\/$/, '');
 
-async function proxyRequest(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-): Promise<NextResponse> {
-  const { path } = await params;
-  const rawPath = request.nextUrl.pathname.replace(/^\/api\/proxy/, '') || '/';
-  const backendUrl = `${BACKEND_URL}${rawPath}${request.nextUrl.search}`;
-
-  const forwardHeaders: Record<string, string> = {};
-
-  const cookie = request.headers.get('cookie');
-  if (cookie) {
-    forwardHeaders['cookie'] = cookie;
-  }
-
-  const authorization = request.headers.get('authorization');
-  if (authorization) {
-    forwardHeaders['authorization'] = authorization;
-  }
-
-  const contentType = request.headers.get('content-type');
-  if (contentType && !contentType.includes('multipart/form-data')) {
-    forwardHeaders['content-type'] = contentType;
-  }
-
-  let body: ArrayBuffer | null = null;
-  if (!['GET', 'HEAD'].includes(request.method)) {
-    body = await request.arrayBuffer();
-  }
-
+async function proxyRequest(request: NextRequest): Promise<Response> {
   try {
-    const backendRes = await fetch(backendUrl, {
+    let subPath = request.nextUrl.pathname.replace(/^\/api\/proxy/, '');
+    if (!subPath.startsWith('/api')) {
+      subPath = `/api${subPath}`;
+    }
+
+    const targetUrl = `${BACKEND_URL}${subPath}${request.nextUrl.search}`;
+
+    const headers = new Headers(request.headers);
+    headers.delete('host');
+    headers.delete('connection');
+
+    const cookie = request.headers.get('cookie');
+    if (cookie) headers.set('cookie', cookie);
+
+    const authHeader = request.headers.get('authorization');
+    if (authHeader) headers.set('authorization', authHeader);
+
+    const hasBody = ['POST', 'PUT', 'PATCH'].includes(request.method);
+
+    const fetchOptions: RequestInit & { duplex?: string } = {
       method: request.method,
-      headers: forwardHeaders,
-      body: body || undefined,
+      headers,
+      body: hasBody ? request.body : undefined,
+      cache: 'no-store',
       redirect: 'follow',
+    };
+
+    if (hasBody) {
+      fetchOptions.duplex = 'half';
+    }
+
+    const response = await fetch(targetUrl, fetchOptions);
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
     });
-
-    const resContentType = backendRes.headers.get('content-type') || '';
-
-    if (resContentType.includes('text/event-stream')) {
-      const headers = new Headers({
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'X-Accel-Buffering': 'no',
-        Connection: 'keep-alive',
-      });
-      const setCookie = backendRes.headers.get('set-cookie');
-      if (setCookie) headers.set('set-cookie', setCookie);
-      return new NextResponse(backendRes.body, {
-        status: backendRes.status,
-        headers,
-      });
-    }
-
-    const responseHeaders = new Headers();
-    if (resContentType) {
-      responseHeaders.set('content-type', resContentType);
-    }
-    const setCookie = backendRes.headers.get('set-cookie');
-    if (setCookie) {
-      responseHeaders.set('set-cookie', setCookie);
-    }
-    return new NextResponse(backendRes.body, {
-      status: backendRes.status,
-      headers: responseHeaders,
-    });
-  } catch (err) {
-    console.error('[Proxy Error]', backendUrl, err);
-    return new NextResponse(
-      JSON.stringify({
-        detail: 'Could not reach the backend server.',
-      }),
-      {
-        status: 503,
-        headers: { 'content-type': 'application/json' },
-      }
+  } catch (err: any) {
+    console.error('Proxy Error:', err);
+    return NextResponse.json(
+      { error: 'Could not reach the backend server.', details: err.message },
+      { status: 502 }
     );
   }
 }
 
 export const GET = proxyRequest;
 export const POST = proxyRequest;
+export const PUT = proxyRequest;
 export const DELETE = proxyRequest;
 export const PATCH = proxyRequest;
-export const PUT = proxyRequest;
+export const OPTIONS = proxyRequest;
