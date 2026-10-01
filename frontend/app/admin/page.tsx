@@ -169,7 +169,7 @@ function AdminContent() {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const res = await fetch(`/api/proxy/documents?t=${Date.now()}`, {
+      const res = await fetch(`/api/proxy/documents/?t=${Date.now()}`, {
         method: "GET",
         credentials: "include",
         headers,
@@ -259,7 +259,7 @@ function AdminContent() {
   };
 
   const toggleDoc = async (doc_id: string) => {
-    await fetch(`/api/proxy/documents/${doc_id}/toggle`, {
+    await fetch(`/api/proxy/documents/${doc_id}/toggle/`, {
       method: "PATCH",
       credentials: "include",
       headers: getAuthHeaders(),
@@ -268,7 +268,7 @@ function AdminContent() {
   };
   const deleteDoc = async (doc_id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    await fetch(`/api/proxy/documents/${doc_id}`, {
+    await fetch(`/api/proxy/documents/${doc_id}/`, {
       method: "DELETE",
       credentials: "include",
       headers: getAuthHeaders(),

@@ -10,7 +10,8 @@ async function proxyRequest(
   { params }: { params: Promise<{ path: string[] }> }
 ): Promise<NextResponse> {
   const { path } = await params;
-  const backendUrl = `${BACKEND_URL}/api/${path.join('/')}`;
+  const rawPath = request.nextUrl.pathname.replace(/^\/api\/proxy/, '') || '/';
+  const backendUrl = `${BACKEND_URL}${rawPath}${request.nextUrl.search}`;
 
   const forwardHeaders: Record<string, string> = {};
 
