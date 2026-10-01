@@ -73,6 +73,7 @@ async def upload_document(
     }
 
 
+@router.get("", response_model=list[DocumentPublic])
 @router.get("/", response_model=list[DocumentPublic])
 async def list_documents(current_user: TokenPayload = Depends(get_current_user)):
     """List all documents in the knowledge base. Accessible to all logged-in users."""
