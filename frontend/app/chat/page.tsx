@@ -10,14 +10,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Plus, Settings, LogOut, Menu, Send, Lock, Phone, BookOpen, ClipboardList, MoreVertical, Trash2, MessagesSquare } from "lucide-react";
+import { Plus, Settings, LogOut, Menu, Send, Lock, Phone, BookOpen, ClipboardList, MoreHorizontal, Trash2, MessagesSquare } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Message {
@@ -127,6 +121,7 @@ function ChatContent() {
   const [currentSession, setCurrentSession] = useState<string>(generateSessionId);
   const [feedbackGiven,  setFeedbackGiven]  = useState<Set<string>>(new Set());
   const [searchQuery,    setSearchQuery]    = useState("");
+  const [openMenuId,     setOpenMenuId]     = useState<string | null>(null);
   const [sidebarOpen,    setSidebarOpen]    = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
@@ -156,6 +151,16 @@ function ChatContent() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    if (openMenuId) {
+      document.addEventListener("click", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [openMenuId]);
 
   const loadSession = (session: Session) => {
     setActiveSession(session.session_id);
@@ -404,58 +409,80 @@ function ChatContent() {
               return (
                 <div key={group}>
                   <p className="text-[10px] font-semibold text-white/30 uppercase tracking-wider px-2 pt-3 pb-1">{group}</p>
-                  {items.map((session) => {
+                  {items.map((session, index) => {
                     const isActive = activeSession === session.session_id;
+                    const menuId = session.session_id || "null";
+                    const flipMenuUp = index >= items.length - 3;
                     return (
-                      <div key={session.session_id || "null"}
+                      <div key={menuId}
                         className={cn(
-                          "group w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg mb-0.5 transition-colors",
+                          "relative flex items-center rounded-lg mb-0.5 transition-colors",
                           isActive ? "bg-white/[0.12]" : "hover:bg-white/[0.07]"
                         )}>
-                        <button type="button" onClick={() => loadSession(session)} className="flex flex-1 min-w-0 items-start gap-2.5 text-left">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            loadSession(session);
+                            setOpenMenuId(null);
+                          }}
+                          className="flex-1 text-left px-3 py-2.5 min-w-0 flex items-start gap-2.5"
+                        >
                           <MessagesSquare
                             size={14}
                             className="text-white/45 shrink-0 mt-0.5"
                           />
                           <div className="flex-1 min-w-0">
                             <p className={cn("text-xs leading-snug truncate", isActive ? "text-gold font-medium" : "text-white/80")}>
-                              {session.title.length > 38 ? session.title.slice(0, 38) + "…" : session.title}
+                              {session.title.length > 30 ? session.title.slice(0, 30) + "…" : session.title}
                             </p>
                             <p className="text-[10px] text-white/30 mt-0.5">
                               {session.count} {session.count === 1 ? "question" : "questions"} · {formatSessionTime(session.created_at)}
                             </p>
                           </div>
                         </button>
-                        {session.session_id && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                        <div className="relative shrink-0 pr-2">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenMenuId(openMenuId === menuId ? null : menuId);
+                            }}
+                            className={cn(
+                              "p-1.5 rounded-md transition-colors",
+                              "text-white/35 hover:text-white/70",
+                              "hover:bg-white/10",
+                              openMenuId === menuId && "bg-white/10"
+                            )}
+                            title="More options"
+                            aria-label={`Options for ${session.title}`}
+                          >
+                            <MoreHorizontal size={14} />
+                          </button>
+
+                          {openMenuId === menuId && (
+                            <div
+                              className={cn(
+                                "absolute right-0 z-50 bg-[#2A0A0A] border border-white/15 rounded-lg shadow-lg overflow-hidden min-w-[130px]",
+                                flipMenuUp ? "bottom-full top-auto mb-1" : "top-full mt-1"
+                              )}
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               <button
                                 type="button"
-                                onClick={(event) => event.stopPropagation()}
-                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-white/20 text-white/50 hover:text-white shrink-0"
-                                title="Chat options"
-                                aria-label={`Options for ${session.title}`}
-                              >
-                                <MoreVertical size={14} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              className="w-36 border-[#3a1d1d] bg-[#2a1414] text-stone-200"
-                            >
-                              <DropdownMenuItem
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleDeleteSession(session.session_id!);
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  if (session.session_id) {
+                                    void handleDeleteSession(session.session_id);
+                                  }
                                 }}
-                                className="cursor-pointer gap-2 text-red-400 focus:bg-[#3a1d1d] focus:text-red-300"
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-400 hover:bg-white/10 hover:text-red-300 transition-colors text-left"
                               >
-                                <Trash2 className="h-4 w-4" />
-                                <span>Delete</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                                <Trash2 size={12} />
+                                Delete conversation
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -493,9 +520,6 @@ function ChatContent() {
 
         {/* Top bar */}
         <div className="flex items-center gap-3 px-4 py-3 md:px-6 md:py-3.5 border-b border-border shrink-0">
-          <button onClick={() => setSidebarOpen(p => !p)} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
-            <Menu size={20} />
-          </button>
           <p className="flex-1 text-sm text-muted-foreground truncate">
             {activeSession
               ? `Session · ${sessions.find(s => s.session_id === activeSession)?.count || ""} questions`
