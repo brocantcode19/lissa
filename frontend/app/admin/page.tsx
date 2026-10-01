@@ -214,6 +214,21 @@ function AdminContent() {
     return () => document.removeEventListener("click", h);
   }, [showDropdown]);
 
+  useEffect(() => {
+    const hasProcessingDocs = docs.some(doc => {
+      const status = String(doc.status).toLowerCase();
+      return status === "processing" || status === "pending";
+    });
+
+    if (!hasProcessingDocs) return;
+
+    const interval = setInterval(() => {
+      fetchDocuments();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [docs, fetchDocuments]);
+
   const filteredDocs = docs.filter(doc =>
     searchQuery === "" ||
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||

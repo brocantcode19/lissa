@@ -4,6 +4,7 @@ Ingestion Service — the pipeline that turns a PDF into searchable vectors.
 Flow:
   PDF file → extract text → split into chunks → embed → upsert to Qdrant
 """
+import asyncio
 import uuid
 import pdfplumber
 from app.services.rag_service import embed_texts
@@ -50,80 +51,72 @@ def chunk_text(text: str) -> list[str]:
     return chunks
 
 
-# ── Step 3: Full pipeline ──────────────────────────────────────────────────────
-async def ingest_document(doc_id: str, file_path: str, filename: str) -> int:
-    """
-    Run the full ingestion pipeline for one document.
-    Returns the number of chunks indexed.
-    """
-    db = get_db()
+# ── Step 3: Synchronous CPU/vector pipeline ────────────────────────────────────
+def index_document_sync(doc_id: str, file_path: str, filename: str) -> int:
+    """Extract, embed, and index one document without touching async services."""
+    text = extract_text(file_path)
 
-    # Mark as processing
+    # Clean PDF artifacts before chunking so Qdrant stores clean text.
+    import re
+    text = re.sub(r'\(cid:\d+\)', '', text)
+    text = re.sub(r'\s{2,}', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    if not text:
+        raise ValueError("No text could be extracted from the PDF.")
+
+    chunks = chunk_text(text)
+    if not chunks:
+        raise ValueError("Document produced no chunks after splitting.")
+
+    vectors = embed_texts(chunks)
+    points = [
+        PointStruct(
+            id=str(uuid.uuid4()),
+            vector=vector,
+            payload={
+                "doc_id": doc_id,
+                "filename": filename,
+                "chunk_index": i,
+                "text": chunk,
+            },
+        )
+        for i, (chunk, vector) in enumerate(zip(chunks, vectors))
+    ]
+
+    get_qdrant().upsert(
+        collection_name=settings.QDRANT_COLLECTION,
+        points=points,
+    )
+    return len(chunks)
+
+
+# ── Step 4: Async pipeline wrapper ────────────────────────────────────────────
+async def ingest_document(doc_id: str, file_path: str, filename: str) -> int:
+    """Run indexing off the event loop and persist its final document status."""
+    db = get_db()
     await db.documents.update_one(
         {"doc_id": doc_id},
         {"$set": {"status": "processing", "updated_at": datetime.utcnow()}},
     )
 
     try:
-        # Extract text
-        text = extract_text(file_path)
-
-        # Clean PDF artifacts before chunking so Qdrant stores clean text
-        import re
-        text = re.sub(r'\(cid:\d+\)', '', text)
-        text = re.sub(r'\s{2,}', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        
-        if not text:
-            raise ValueError("No text could be extracted from the PDF.")
-
-        # Chunk
-        chunks = chunk_text(text)
-        if not chunks:
-            raise ValueError("Document produced no chunks after splitting.")
-
-        # Embed all chunks in one batch (faster than one-by-one)
-        vectors = embed_texts(chunks)
-
-        # Build Qdrant points
-        points = [
-            PointStruct(
-                id=str(uuid.uuid4()),
-                vector=vector,
-                payload={
-                    "doc_id": doc_id,
-                    "filename": filename,
-                    "chunk_index": i,
-                    "text": chunk,
-                },
-            )
-            for i, (chunk, vector) in enumerate(zip(chunks, vectors))
-        ]
-
-        # Upsert to Qdrant
-        qdrant = get_qdrant()
-        qdrant.upsert(
-            collection_name=settings.QDRANT_COLLECTION,
-            points=points,
+        chunk_count = await asyncio.to_thread(
+            index_document_sync, doc_id, file_path, filename
         )
-
-        # Mark as indexed in MongoDB
         await db.documents.update_one(
             {"doc_id": doc_id},
             {
                 "$set": {
                     "status": "indexed",
-                    "chunk_count": len(chunks),
+                    "chunk_count": chunk_count,
                     "updated_at": datetime.utcnow(),
                 }
             },
         )
-
-        print(f"✅ Indexed '{filename}' → {len(chunks)} chunks")
-        return len(chunks)
-
+        print(f"✅ Indexed '{filename}' → {chunk_count} chunks")
+        return chunk_count
     except Exception as e:
-        # Mark as failed so the admin can see what went wrong
         await db.documents.update_one(
             {"doc_id": doc_id},
             {"$set": {"status": "failed", "error": str(e), "updated_at": datetime.utcnow()}},

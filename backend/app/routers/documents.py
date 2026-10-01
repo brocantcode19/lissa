@@ -1,11 +1,13 @@
+import asyncio
 import os
 import shutil
+import traceback
 import uuid
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from app.models.document import DocumentInDB, DocumentPublic
 from app.models.user import TokenPayload
 from app.services.auth_service import get_current_user, require_admin
-from app.services.ingestion_service import ingest_document, delete_document_vectors
+from app.services.ingestion_service import index_document_sync, delete_document_vectors
 from app.database import get_db
 from datetime import datetime
 
@@ -15,18 +17,47 @@ UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def process_document_background(doc_id: str, file_path: str, filename: str):
+async def process_document_background(doc_id: str, file_path: str, filename: str):
+    """Run CPU-heavy indexing in a thread without blocking FastAPI's event loop."""
+    db = get_db()
     try:
-        ingest_document(doc_id, file_path, filename)
-    except Exception:
-        db = get_db()
-        db.documents.update_one(
-            {"doc_id": doc_id},
-            {"$set": {"status": "failed", "updated_at": datetime.utcnow()}},
+        print(f"Starting background indexing for document: {doc_id}")
+        chunk_count = await asyncio.to_thread(
+            index_document_sync, doc_id, file_path, filename
         )
+        await db.documents.update_one(
+            {"doc_id": doc_id},
+            {
+                "$set": {
+                    "status": "indexed",
+                    "chunk_count": chunk_count,
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+        print(f"Document {doc_id} successfully indexed and active.")
+    except Exception as exc:
+        print(f"Background indexing failed for document {doc_id}: {exc}")
+        traceback.print_exc()
+        try:
+            await db.documents.update_one(
+                {"doc_id": doc_id},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "error": str(exc),
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+        except Exception:
+            traceback.print_exc()
     finally:
         if os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except OSError as exc:
+                print(f"Failed to delete temporary file {file_path}: {exc}")
 
 
 @router.post("", response_model=dict)
