@@ -1,59 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
 
-const BACKEND_URL =
-  process.env.BACKEND_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://backend:8000';
+async function proxyRequest(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+): Promise<NextResponse> {
+  const { path } = await params;
+  const backendUrl = `${BACKEND_URL}/api/${path.join('/')}`;
 
-async function proxyRequest(request: NextRequest): Promise<Response> {
-  const path = request.nextUrl.pathname.replace('/api/proxy', '');
-  const backendBase = BACKEND_URL.replace(/\/$/, '');
-  const apiPath = backendBase.endsWith('/api') ? path : `/api${path}`;
-  const targetUrl = `${backendBase}${apiPath}${request.nextUrl.search}`;
-  const headers = new Headers(request.headers);
-  headers.delete('host');
-  headers.delete('connection');
+  const forwardHeaders: Record<string, string> = {};
 
-  const hasBody = ['POST', 'PUT', 'PATCH'].includes(request.method);
-  const fetchOptions: RequestInit & { duplex?: string } = {
-    method: request.method,
-    headers,
-    body: hasBody ? request.body : undefined,
-    cache: 'no-store',
-    redirect: 'follow',
-  };
+  const cookie = request.headers.get('cookie');
+  if (cookie) forwardHeaders['cookie'] = cookie;
 
-  if (hasBody) {
-    fetchOptions.duplex = 'half';
+  const contentType = request.headers.get('content-type');
+  if (contentType && !contentType.includes('multipart/form-data')) {
+    forwardHeaders['content-type'] = contentType;
+  }
+
+  let body: ArrayBuffer | null = null;
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    body = await request.arrayBuffer();
   }
 
   try {
-    const backendRes = await fetch(targetUrl, fetchOptions);
-
-    return new Response(backendRes.body, {
-      status: backendRes.status,
-      headers: backendRes.headers,
+    const backendRes = await fetch(backendUrl, {
+      method: request.method,
+      headers: forwardHeaders,
+      body: body || undefined,
+      redirect: 'follow',
     });
 
-  } catch (err: unknown) {
-    console.error('[Proxy Error]', targetUrl, err);
-    return NextResponse.json(
+    const resContentType = backendRes.headers.get('content-type') || '';
+
+    if (resContentType.includes('text/event-stream')) {
+      const headers = new Headers({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+        Connection: 'keep-alive',
+      });
+      const setCookie = backendRes.headers.get('set-cookie');
+      if (setCookie) headers.set('set-cookie', setCookie);
+      return new NextResponse(backendRes.body, {
+        status: backendRes.status,
+        headers,
+      });
+    }
+
+    const responseHeaders = new Headers();
+    if (resContentType) {
+      responseHeaders.set('content-type', resContentType);
+    }
+    const setCookie = backendRes.headers.get('set-cookie');
+    if (setCookie) {
+      responseHeaders.set('set-cookie', setCookie);
+    }
+    return new NextResponse(backendRes.body, {
+      status: backendRes.status,
+      headers: responseHeaders,
+    });
+  } catch (err) {
+    console.error('[Proxy Error]', backendUrl, err);
+    return new NextResponse(
+      JSON.stringify({
+        detail: 'Could not reach the backend server.',
+      }),
       {
-        error: 'Could not reach the backend server.',
-        details: err instanceof Error ? err.message : 'Unknown proxy error',
-      },
-      { status: 502 }
+        status: 503,
+        headers: { 'content-type': 'application/json' },
+      }
     );
   }
 }
 
-export const GET    = proxyRequest;
-export const POST   = proxyRequest;
+export const GET = proxyRequest;
+export const POST = proxyRequest;
 export const DELETE = proxyRequest;
-export const PATCH  = proxyRequest;
-export const PUT    = proxyRequest;
-export const OPTIONS = proxyRequest;
+export const PATCH = proxyRequest;
+export const PUT = proxyRequest;
