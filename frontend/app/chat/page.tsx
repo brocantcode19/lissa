@@ -326,6 +326,7 @@ function ChatContent() {
   const filtered   = sessions.filter(s => searchQuery === "" || s.title.toLowerCase().includes(searchQuery.toLowerCase()));
   const grouped    = groupSessionsByDate(filtered);
   const groupOrder = ["Today", "Yesterday", "This Week", "Older"];
+  const totalSessionCount = filtered.length;
   const initials   = user?.full_name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "S";
 
   return (
@@ -412,7 +413,10 @@ function ChatContent() {
                   {items.map((session, index) => {
                     const isActive = activeSession === session.session_id;
                     const menuId = session.session_id || "null";
-                    const flipMenuUp = index >= items.length - 3;
+                    const sessionIndex = groupOrder
+                      .slice(0, groupOrder.indexOf(group))
+                      .reduce((count, groupName) => count + (grouped[groupName]?.length || 0), 0) + index;
+                    const flipMenuUp = sessionIndex >= totalSessionCount - 3;
                     return (
                       <div key={menuId}
                         className={cn(

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -16,27 +16,37 @@ async function proxyRequest(request: NextRequest): Promise<Response> {
   const targetUrl = `${backendBase}${apiPath}${request.nextUrl.search}`;
   const headers = new Headers(request.headers);
   headers.delete('host');
+  headers.delete('connection');
+
+  const hasBody = ['POST', 'PUT', 'PATCH'].includes(request.method);
+  const fetchOptions: RequestInit & { duplex?: string } = {
+    method: request.method,
+    headers,
+    body: hasBody ? request.body : undefined,
+    cache: 'no-store',
+    redirect: 'follow',
+  };
+
+  if (hasBody) {
+    fetchOptions.duplex = 'half';
+  }
 
   try {
-    const backendRes = await fetch(targetUrl, {
-      method: request.method,
-      headers,
-      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
-      // @ts-ignore - duplex is required for streaming request bodies.
-      duplex: 'half',
-      redirect: 'follow',
-    });
+    const backendRes = await fetch(targetUrl, fetchOptions);
 
     return new Response(backendRes.body, {
       status: backendRes.status,
       headers: backendRes.headers,
     });
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[Proxy Error]', targetUrl, err);
-    return new Response(
-      JSON.stringify({ detail: 'Could not reach the backend server.' }),
-      { status: 503, headers: { 'content-type': 'application/json' } }
+    return NextResponse.json(
+      {
+        error: 'Could not reach the backend server.',
+        details: err instanceof Error ? err.message : 'Unknown proxy error',
+      },
+      { status: 502 }
     );
   }
 }
@@ -46,3 +56,4 @@ export const POST   = proxyRequest;
 export const DELETE = proxyRequest;
 export const PATCH  = proxyRequest;
 export const PUT    = proxyRequest;
+export const OPTIONS = proxyRequest;
