@@ -149,16 +149,41 @@ function AdminContent() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    await fetchDocuments();
     await loadInquiries();
     setTimeout(() => setRefreshing(false), 600);
   };
 
-  const loadDocs = useCallback(async () => {
-    const r = await fetch("/api/proxy/documents/", {
-      credentials: "include",
-      headers: getAuthHeaders(),
-    });
-    if (r.ok) setDocs(await r.json());
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const token = typeof window !== "undefined"
+        ? localStorage.getItem("token") || localStorage.getItem("access_token")
+        : null;
+
+      const headers: Record<string, string> = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`/api/proxy/documents?t=${Date.now()}`, {
+        method: "GET",
+        credentials: "include",
+        headers,
+        cache: "no-store",
+      });
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const docsList = Array.isArray(data) ? data : (data.documents || data.data || []);
+      setDocs(docsList);
+    } catch (err) {
+      console.error("Error fetching documents:", err);
+    }
   }, []);
 
   const loadInquiries = useCallback(async () => {
@@ -179,8 +204,9 @@ function AdminContent() {
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(d => { if (d.role_id !== "admin") router.push("/chat"); setUser(d); })
       .catch(() => router.push("/login"));
-    loadDocs(); loadInquiries();
-  }, [router, loadDocs, loadInquiries]);
+    fetchDocuments();
+    loadInquiries();
+  }, [router, fetchDocuments, loadInquiries]);
 
   useEffect(() => {
     const h = () => setShowDropdown(false);
@@ -221,14 +247,15 @@ function AdminContent() {
       body: form,
     });
     if (r.ok) {
-      await loadDocs();
-      alert(
-        "Document uploaded successfully. " +
-        "If status shows Pending, click Refresh in 30 seconds to see the updated status."
-      );
+      setUploading(false);
+      alert("Document uploaded successfully.");
+      await fetchDocuments();
+      setTimeout(() => fetchDocuments(), 2500);
+    } else {
+      const e = await r.json();
+      setUploading(false);
+      alert(e.detail || "Upload failed.");
     }
-    else { const e = await r.json(); alert(e.detail || "Upload failed."); }
-    setUploading(false);
   };
 
   const toggleDoc = async (doc_id: string) => {
@@ -237,7 +264,7 @@ function AdminContent() {
       credentials: "include",
       headers: getAuthHeaders(),
     });
-    loadDocs();
+    fetchDocuments();
   };
   const deleteDoc = async (doc_id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
@@ -246,7 +273,7 @@ function AdminContent() {
       credentials: "include",
       headers: getAuthHeaders(),
     });
-    loadDocs();
+    fetchDocuments();
   };
   const deleteInquiry = async (inquiry_id: string, question: string) => {
     const confirmed = confirm(
