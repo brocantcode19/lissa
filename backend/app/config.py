@@ -22,7 +22,10 @@ class Settings(BaseSettings):
 
     # Groq API
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    # Token optimization for free tier concurrency
+    GROQ_MAX_TOKENS: int = 250
+    GROQ_CONTEXT_CHUNKS: int = 2
 
     # Rate limiting
     RATE_LIMIT_QUERIES_PER_MINUTE: int = 10

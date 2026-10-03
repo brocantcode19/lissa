@@ -118,7 +118,7 @@ async def _retrieve_chunks(question: str, db, qdrant):
         search_results = qdrant.search(
             collection_name=settings.QDRANT_COLLECTION,
             query_vector=query_vector,
-            limit=7,
+            limit=4,
             query_filter=Filter(
                 must=[FieldCondition(
                     key="doc_id",

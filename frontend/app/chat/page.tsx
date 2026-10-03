@@ -258,12 +258,32 @@ function ChatContent() {
                   bottomRef.current?.scrollIntoView({ behavior: "smooth" });
                 }
                 if (parsed.done) {
-                  setMessages((p) => p.map((m) => m.id === streamId ? {
-                    ...m, id: parsed.inquiry_id, isStreaming: false,
-                    inquiry_id: parsed.inquiry_id, confidence: parsed.confidence,
-                    confidence_label: parsed.confidence_label,
-                    source_filename: parsed.source_filename, escalated: parsed.escalated,
-                  } : m));
+                  setMessages((p) => p.map((m) => {
+                    if (m.id !== streamId) return m;
+
+                    const content = m.content.trim();
+                    const endsCleanly = (
+                      content.endsWith(".") ||
+                      content.endsWith("?") ||
+                      content.endsWith("!") ||
+                      content.endsWith(":") ||
+                      content.endsWith(")") ||
+                      content.includes("university office directly") ||
+                      content.includes("LdCU-related questions")
+                    );
+                    const looksIncomplete = content.length > 20 && !endsCleanly;
+                    const finalContent = looksIncomplete
+                      ? content + "...\n\n*Response was interrupted. Please ask again.*"
+                      : content;
+
+                    return {
+                      ...m, id: parsed.inquiry_id, isStreaming: false,
+                      inquiry_id: parsed.inquiry_id, confidence: parsed.confidence,
+                      confidence_label: parsed.confidence_label,
+                      source_filename: parsed.source_filename, escalated: parsed.escalated,
+                      content: finalContent,
+                    };
+                  }));
                   setActiveSession(parsed.session_id || currentSession);
                   setSessions(prev => {
                     const sessionId = parsed.session_id || currentSession;
@@ -663,7 +683,10 @@ function ChatContent() {
               placeholder="Ask LISSA"
               disabled={loading}
               rows={1}
-              className="flex-1 bg-transparent border-none outline-none ring-0 focus-visible:ring-0 shadow-none text-white/85 placeholder:text-white/35 text-sm font-sans py-0 px-0 resize-none min-h-[24px] max-h-[160px] leading-6"
+              className={cn(
+                "flex-1 bg-transparent border-none outline-none ring-0 focus-visible:ring-0 shadow-none text-white/85 placeholder:text-white/35 text-sm font-sans py-0 px-0 resize-none min-h-[24px] max-h-[160px] leading-6",
+                loading && "opacity-60 cursor-not-allowed"
+              )}
               autoFocus
             />
             <Button
@@ -671,9 +694,26 @@ function ChatContent() {
               size="sm"
               onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
-              className="px-4 min-h-[44px] shrink-0 self-end">
-              <Send size={14} />
-              Send
+              className="px-4 min-h-[44px] shrink-0 self-end gap-1.5">
+              {loading ? (
+                <>
+                  <svg
+                    className="animate-spin h-3.5 w-3.5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-xs">Thinking...</span>
+                </>
+              ) : (
+                <>
+                  <Send size={14} />
+                  Send
+                </>
+              )}
             </Button>
           </div>
           <p className="text-center text-[10px] md:text-[11px] text-white/30 mt-1.5 md:mt-2 px-4">
