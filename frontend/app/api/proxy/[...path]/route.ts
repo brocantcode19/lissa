@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
-
-const BACKEND_URL = (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000').replace(/\/$/, '');
+export const maxDuration = 30;
 
 async function proxyRequest(request: NextRequest): Promise<Response> {
   try {
+    const backendUrl = (
+      process.env.BACKEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'https://lissa-production.up.railway.app'
+    ).replace(/\/$/, '');
+
     let subPath = request.nextUrl.pathname.replace(/^\/api\/proxy/, '');
     if (!subPath.startsWith('/api')) {
       subPath = `/api${subPath}`;
     }
 
-    const targetUrl = `${BACKEND_URL}${subPath}${request.nextUrl.search}`;
+    const targetUrl = `${backendUrl}${subPath}${request.nextUrl.search}`;
 
     const headers = new Headers(request.headers);
     headers.delete('host');
@@ -39,11 +44,14 @@ async function proxyRequest(request: NextRequest): Promise<Response> {
     }
 
     const response = await fetch(targetUrl, fetchOptions);
+    const responseHeaders = new Headers(response.headers);
+    responseHeaders.set('Cache-Control', 'no-cache, no-transform');
+    responseHeaders.set('X-Accel-Buffering', 'no');
 
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers,
+      headers: responseHeaders,
     });
   } catch (err: any) {
     console.error('Proxy Error:', err);
